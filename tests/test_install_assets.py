@@ -97,6 +97,8 @@ class InstallerAssetTests(unittest.TestCase):
                     self.assertNotIn("private.example.invalid",code)
                     self.assertNotIn("__HUB_ORIGIN__",code)
                     self.assertNotIn("__ARCHIVE_SHA256__",code)
+                    self.assertIn("acquireAgentArchive",code)
+                    self.assertEqual(tar.extractfile("package/assets/"+AGENT).read(),aa[AGENT].read_bytes())
                     self.assertNotIn("npx.cmd",code)
                     self.assertIn("ASC_HUB_SKIP_ENROLL",code)
                     self.assertIn("configured=fs.existsSync(credentialPath())",code)
