@@ -49,9 +49,11 @@ class TrafficTraceTests(unittest.TestCase):
         row = json.loads(journal.read_text(encoding="utf-8"))
         self.assertEqual(row["payload"], payload)
         self.assertEqual(row["request_id"], "matched")
-        self.assertEqual(os.stat(t.directory).st_mode & 0o777, 0o700)
-        self.assertEqual(os.stat(journal).st_mode & 0o777, 0o600)
-        self.assertEqual(os.stat(journal.parent).st_mode & 0o777, 0o700)
+        # NTFS ACLs are not represented by POSIX chmod mode bits on Windows.
+        if os.name != "nt":
+            self.assertEqual(os.stat(t.directory).st_mode & 0o777, 0o700)
+            self.assertEqual(os.stat(journal).st_mode & 0o777, 0o600)
+            self.assertEqual(os.stat(journal.parent).st_mode & 0o777, 0o700)
 
     def test_rotates_on_size_limit_and_never_truncates_entry(self):
         t = TrafficTrace(self.base, enabled=True, account_id="u1", max_bytes=1024, backups=2)
