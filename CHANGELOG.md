@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 — 2026-10-11
+
+- Preserve Windows GUI dependencies for existing paired devices when upgrading from a manually installed agent to the persistent tray launcher.
+- Still uses the constant install URL `npx --yes https://hub.example.com/cli.tgz`.
+
 ## 1.0.2 — 2026-10-11
 
 - Linux installer accepts direct root sessions and installs a root-owned systemd unit; systemd availability is validated before redeeming a single-use code.
