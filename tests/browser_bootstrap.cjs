@@ -70,7 +70,7 @@ async function run(){
   const signedIn=setup('dashboard',{session:true});
   await new Promise(r=>setTimeout(r,80));
   assert.equal(signedIn.get('email').textContent,'person@example.test');
-  assert.equal(signedIn.get('install-command').textContent,'npx.cmd --yes https://hub.example.net/cli-1.0.0.tgz');
+  assert.equal(signedIn.get('install-command').textContent,'npx --yes https://hub.example.net/cli-1.0.1.tgz');
   assert.equal(signedIn.get('total-calls').textContent,'4');
   assert.equal(signedIn.get('userbar').children[0].textContent,'Выйти');
   await signedIn.get('userbar').listeners.click({target:{id:'logout'}});
