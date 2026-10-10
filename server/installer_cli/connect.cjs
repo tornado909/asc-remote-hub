@@ -22,7 +22,7 @@ function help(){
   console.log([
     'ASC Remote Hub '+VERSION+' — подключение устройства',
     '',
-    'Команда: '+npx+' --yes '+ORIGIN+'/cli-1.0.0.tgz',
+    'Команда: '+npx+' --yes '+ORIGIN+'/cli-1.0.1.tgz',
     '',
     '1. Зарегистрируйтесь на '+ORIGIN,
     '2. В кабинете нажмите «+ Добавить устройство»',
