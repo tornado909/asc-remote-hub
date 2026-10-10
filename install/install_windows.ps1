@@ -7,6 +7,7 @@ param(
     [string]$Roots=$env:USERPROFILE,
     [switch]$FullAccess,
     [switch]$AllowGui,
+    [switch]$SkipEnrollment,
     [switch]$NoScheduledTask
 )
 $ErrorActionPreference='Stop'
@@ -19,8 +20,13 @@ $argsList=@($client,'enroll','--hub',$HubUrl,'--name',$DeviceName,'--config',$co
 $argsList+=@($Roots -split ';')
 if($FullAccess){$argsList+=@('--write','--exec','--gui')}
 elseif($AllowGui){$argsList+='--gui'}
-& $python @argsList
-if($LASTEXITCODE -ne 0){throw 'Device enrollment failed'}
+if(-not $SkipEnrollment){
+    & $python @argsList
+    if($LASTEXITCODE -ne 0){throw 'Device enrollment failed'}
+}else{
+    if(-not(Test-Path -LiteralPath $config)){throw 'Cannot restore task: no saved device credential'}
+    Write-Host 'Existing enrollment preserved; restoring the background task.'
+}
 $taskName='ASC Remote Hub Agent'
 if(-not $NoScheduledTask){
     $starter=(Resolve-Path (Join-Path $PSScriptRoot 'start_windows.ps1')).Path
