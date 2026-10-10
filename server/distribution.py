@@ -115,7 +115,7 @@ def build_distributions(project_root: Path, data_dir: Path, origin: str) -> dict
     }
     cli_guide = (
         "# ASC Remote Hub CLI\\n\\n"
-        f"Install: npx --yes {origin}/{CLI}\\n"
+        f"Install: npx --yes {origin}/cli.tgz\\n"
         "The CLI requests a one-time pairing code from your account.\\n"
         "No npm registry publishing, platform API key, or paid tunnel required.\\n"
     ).replace("\\n", "\n")
