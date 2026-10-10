@@ -29,14 +29,21 @@ if(-not $SkipEnrollment){
 }
 $taskName='ASC Remote Hub Agent'
 if(-not $NoScheduledTask){
-    $starter=(Resolve-Path (Join-Path $PSScriptRoot 'start_windows.ps1')).Path
-    $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"' -f $starter)
+    $starter=(Resolve-Path (Join-Path $PSScriptRoot 'launch_tray_windows.vbs')).Path
+    $wscript=Join-Path $env:SystemRoot 'System32\wscript.exe'
+    if (-not (Test-Path -LiteralPath $wscript)) { throw 'Windows Script Host is required for the tray launcher.' }
+    $action=New-ScheduledTaskAction -Execute $wscript -Argument ('//B //NoLogo "{0}"' -f $starter)
     $trigger=New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
     $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+    $oldTask=Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if ($oldTask -and $oldTask.State -eq 'Running') {
+        Stop-ScheduledTask -TaskName $taskName -ErrorAction Stop
+        Start-Sleep -Seconds 1
+    }
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
     Start-ScheduledTask -TaskName $taskName
-    Write-Host "Agent task started: $taskName. Check the hub dashboard for online status."
+    Write-Host "Tray agent started: $taskName. Use the ASC icon in the Windows notification area."
 }else{
     Write-Host "Manual start: powershell -File `"$PSScriptRoot\start_windows.ps1`""
 }
-Write-Host 'Windows device token encrypted for current user using DPAPI.'
+Write-Host 'Windows device credentials preserved with current-user DPAPI.'
