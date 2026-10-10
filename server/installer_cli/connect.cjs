@@ -262,10 +262,15 @@ async function main(){
       if(!fs.existsSync(path.join(venv,'Scripts','python.exe')))
         exec(py,['-m','venv',venv]);
       if(opt.mode==='full'&&!configured){
-        console.log('Устанавливаю GUI-зависимости в отдельное окружение...');
-        exec(path.join(venv,'Scripts','python.exe'),
-          ['-m','pip','install','--disable-pip-version-check',
-           'Pillow>=10,<13','PyAutoGUI>=0.9.54,<0.10']);
+        const venvPy=path.join(venv,'Scripts','python.exe');
+        const deps=cp.spawnSync(venvPy,['-c',
+          'import importlib.metadata as m; m.version("Pillow"); m.version("PyAutoGUI")'],
+          {stdio:'ignore',windowsHide:true,timeout:10000});
+        if(deps.status!==0){
+          console.log('Устанавливаю GUI-зависимости в отдельное окружение...');
+          exec(venvPy,['-m','pip','install','--disable-pip-version-check',
+            'Pillow>=10,<13','PyAutoGUI>=0.9.54,<0.10']);
+        }else console.log('✓ GUI-зависимости уже установлены; повторная загрузка не нужна.');
       }
     }
     let pairing='';
