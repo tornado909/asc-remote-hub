@@ -194,7 +194,7 @@ async function main(){
   const dir=path.join(HOME,'.asc-remote-hub','agent');
   // An interrupted install may leave the agent directory but no credential.
   // Never destroy or re-enroll an already configured device.
-  const configured=fs.existsSync(credentialPath());
+  const configured=!opt.dryRun&&fs.existsSync(credentialPath());
   if(configured){
     let existing;
     try{existing=JSON.parse(fs.readFileSync(credentialPath(),'utf8'));}
@@ -203,7 +203,7 @@ async function main(){
       fail('Устройство привязано к другому хабу. Существующий токен сохранён.');
     if(!existing.device_id||!existing.token_file||!fs.existsSync(existing.token_file))
       fail('В настройках отсутствует ключ устройства. Исправьте привязку в кабинете без удаления других устройств.');
-  } else if(fs.existsSync(dir)){
+  } else if(!opt.dryRun&&fs.existsSync(dir)){
     console.log('Обнаружена незавершённая установка. Продолжаю, сохраняя существующие файлы и окружение.');
     console.log('Если устройство уже появилось в кабинете как офлайн, отвяжите только его и создайте новый код.');
   }
