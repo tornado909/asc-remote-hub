@@ -101,7 +101,7 @@ class InstallerAssetTests(unittest.TestCase):
                     self.assertEqual(tar.extractfile("package/assets/"+AGENT).read(),aa[AGENT].read_bytes())
                     self.assertNotIn("npx.cmd",code)
                     self.assertIn("ASC_HUB_SKIP_ENROLL",code)
-                    self.assertIn("configured=fs.existsSync(credentialPath())",code)
+                    self.assertIn("configured=!opt.dryRun&&fs.existsSync(credentialPath())",code)
                     self.assertIn("Существующие (без изменений)",code)
             with tarfile.open(aa[AGENT],mode="r:gz") as tar:
                 names=tar.getnames()
