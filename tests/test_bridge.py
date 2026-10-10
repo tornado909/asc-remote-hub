@@ -63,3 +63,38 @@ class BridgeReliabilityTests(unittest.TestCase):
         self.assertTrue(revoked.is_set())
         self.assertFalse(t.is_alive())
         self.assertEqual(len(called),1)
+
+
+class WindowsCredentialTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform=="win32","Windows-only DPAPI")
+    def test_native_dpapi_unicode_roundtrip(self):
+        from bridge import encrypt_secret,decrypt_secret
+        for sample in ("ASC-HUB-TEST-12345", "Русский текст и emoji 🙂"):
+            encrypted=encrypt_secret(sample)
+            self.assertTrue(encrypted.startswith("dpapi1:"))
+            self.assertNotIn(sample,encrypted)
+            self.assertEqual(decrypt_secret(encrypted),sample)
+
+    def test_enrollment_preflight_runs_before_one_time_code_redemption(self):
+        import os
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from bridge import enroll
+        with tempfile.TemporaryDirectory() as temp:
+            args=SimpleNamespace(hub="https://hub.example.test",name="test-pc",
+                config=str(Path(temp)/"agent.json"),roots=[temp],write=False,
+                exec=False,gui=False,delete=False)
+            with patch("bridge.Agent"),patch("bridge.request") as network, \
+                 patch("bridge.preflight_credentials",side_effect=RuntimeError("DPAPI unavailable")), \
+                 patch.dict(os.environ,{"ASC_HUB_PAIRING_CODE":"TEST-CODE"}):
+                with self.assertRaisesRegex(RuntimeError,"DPAPI unavailable"):
+                    enroll(args)
+                network.assert_not_called()
+
+    def test_preflight_does_not_leave_temporary_secret(self):
+        from bridge import preflight_credentials
+        with tempfile.TemporaryDirectory() as temp:
+            target=Path(temp)/"creds"/"agent.json"
+            preflight_credentials(target)
+            self.assertEqual(list(target.parent.iterdir()), [])
+
