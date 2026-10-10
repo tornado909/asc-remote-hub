@@ -71,12 +71,13 @@ class LegacySplitTests(unittest.TestCase):
         self.assertEqual(read(b),raw[3:5])
         self.assertEqual(read(hub),raw[5:6]+raw[7:9])
         self.assertEqual(read(other),raw[6:7])
-        for p in (a,b,hub,other):
-            self.assertEqual(p.stat().st_mode & 0o777,0o600)
-            ancestor=p.parent
-            while ancestor!=self.root:
-                self.assertEqual(ancestor.stat().st_mode & 0o777,0o700)
-                ancestor=ancestor.parent
+        if os.name != "nt":  # Windows permissions are enforced through NTFS ACLs.
+            for p in (a,b,hub,other):
+                self.assertEqual(p.stat().st_mode & 0o777,0o600)
+                ancestor=p.parent
+                while ancestor!=self.root:
+                    self.assertEqual(ancestor.stat().st_mode & 0o777,0o700)
+                    ancestor=ancestor.parent
         self.assertFalse((self.root/"traffic.jsonl").exists())
         self.assertFalse((self.root/"traffic.jsonl.1").exists())
         backup=Path(result["legacy_backup"])
