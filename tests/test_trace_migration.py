@@ -83,7 +83,8 @@ class LegacySplitTests(unittest.TestCase):
         backup=Path(result["legacy_backup"])
         self.assertEqual((backup/"traffic.jsonl.1").read_bytes(),b"".join(raw[:3]))
         self.assertEqual((backup/"traffic.jsonl").read_bytes(),b"".join(raw[3:]))
-        self.assertEqual(backup.stat().st_mode & 0o777,0o700)
+        if os.name != "nt":
+            self.assertEqual(backup.stat().st_mode & 0o777,0o700)
         with redirect_stdout(io.StringIO()):
             result2=split_legacy(self.data)
         self.assertFalse(result2["migrated"])
