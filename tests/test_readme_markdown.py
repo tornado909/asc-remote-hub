@@ -23,7 +23,7 @@ class ReadmeMarkdownTests(unittest.TestCase):
                 self.assertEqual(line, chr(96) * 3)
         self.assertIn(chr(96) + "ASC_HUB_URL" + chr(96), raw)
         self.assertIn(chr(96) * 3 + "bash\n", raw)
-        self.assertIn("https://hub.example.com/cli-1.0.1.tgz", raw)
+        self.assertIn("https://hub.example.com/cli.tgz", raw)
         self.assertIn("https://hub.example.com/mcp", raw)
 
     def test_english_readme(self):
