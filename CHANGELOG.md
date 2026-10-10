@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1 — 2026-10-10
+
+- Windows agent encrypts new device credentials via native user-bound DPAPI, without PowerShell subprocess piping.
+- Credential store is checked before redeeming a single-use pairing code, preventing the observed orphan registration on DPAPI failure.
+- The cross-platform `npx` installer resumes interrupted installations, preserves existing credentials and repairs background startup.
+- Improve transient HTTPS download error reporting and retry; existing agent tokens remain compatible.
+- This is a client/installer release; users still need to revoke any orphan device created by 1.0.0 failures.
+
+
 ## 1.0.3 — 2026-10-10
 
 - Expand the privacy guard to detect non-example bare domains in common DNS zones, internal hostnames and private LAN IPs.
