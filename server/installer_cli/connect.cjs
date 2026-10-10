@@ -11,8 +11,8 @@ const readline=require('node:readline/promises');
 const {once}=require('node:events');
 
 const ORIGIN='__HUB_ORIGIN__';
-const VERSION='1.0.1';
-const ARCHIVE='asc-remote-hub-agent-1.0.1.tar.gz';
+const VERSION='1.0.2';
+const ARCHIVE='asc-remote-hub-agent-1.0.2.tar.gz';
 const CHECKSUM='__ARCHIVE_SHA256__';
 const WIN=process.platform==='win32';
 const HOME=os.homedir();
@@ -38,7 +38,8 @@ function help(){
     '--version       Версия',
     '',
     'Требуется Node.js >=18 (для npx), Python >=3.10 и tar.',
-    'Рабочий агент не использует Node.js, платный туннель или OpenAI Platform API.'
+    'Агент не использует Node.js, платный туннель или OpenAI Platform API.',
+    'На Windows работает в системном трее, а при установке под root/Linux — через systemd.'
   ].join('\n'));
 }
 function fail(text){throw new Error(text);}

@@ -26,7 +26,7 @@ from urllib.request import Request,urlopen
 from urllib.parse import urlparse
 from asc_remote_commander import Agent
 
-VERSION="1.0.1"
+VERSION="1.0.2"
 
 
 def default_config() -> Path:

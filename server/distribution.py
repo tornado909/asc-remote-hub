@@ -16,7 +16,7 @@ import re
 import tarfile
 import tempfile
 
-RELEASE = "1.0.1"
+RELEASE = "1.0.2"
 CLI = f"cli-{RELEASE}.tgz"
 AGENT = f"asc-remote-hub-agent-{RELEASE}.tar.gz"
 ALLOWED_FILES = (
@@ -24,6 +24,8 @@ ALLOWED_FILES = (
     "client/bridge.py",
     "install/start_windows.ps1",
     "install/install_windows.ps1",
+    "install/tray_windows.ps1",
+    "install/launch_tray_windows.vbs",
     "install/install_linux.sh",
     "LICENSE",
 )

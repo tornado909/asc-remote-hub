@@ -109,7 +109,25 @@ class InstallerAssetTests(unittest.TestCase):
                 names=tar.getnames()
                 self.assertTrue(all(x.startswith("asc-remote-hub/") for x in names))
                 self.assertFalse(any(".env" in x or "sqlite" in x or "backup" in x for x in names))
-                self.assertEqual(len(names),7)
+                self.assertEqual(len(names),9)
+                self.assertIn("asc-remote-hub/install/tray_windows.ps1",names)
+                self.assertIn("asc-remote-hub/install/launch_tray_windows.vbs",names)
+
+    def test_root_linux_and_windows_tray_profiles(self):
+        linux=(HERE/"install/install_linux.sh").read_text(encoding="utf-8")
+        windows=(HERE/"install/install_windows.ps1").read_text(encoding="utf-8")
+        tray=(HERE/"install/tray_windows.ps1").read_text(encoding="utf-8")
+        launcher=(HERE/"install/launch_tray_windows.vbs").read_text(encoding="utf-8")
+        self.assertNotIn("Run without sudo", linux)
+        self.assertIn("WantedBy=multi-user.target", linux)
+        self.assertIn("systemctl enable --now", linux)
+        self.assertLess(linux.index("requires an active systemd"),linux.index('"$BASE/client/bridge.py"'))
+        self.assertIn("launch_tray_windows.vbs",windows)
+        self.assertIn("wscript.exe",windows)
+        for item in ("Открыть хаб", "Перезапустить агент", "Выход"):
+            self.assertIn(item,tray)
+        self.assertIn("System.Windows.Forms.NotifyIcon",tray)
+        self.assertIn("tray_windows.ps1",launcher)
 
     def test_health_and_oauth_still_work(self):
         for route in ("/healthz","/.well-known/oauth-authorization-server"):

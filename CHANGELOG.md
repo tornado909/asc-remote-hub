@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2 — 2026-10-11
+
+- Linux installer accepts direct root sessions and installs a root-owned systemd unit; systemd availability is validated before redeeming a single-use code.
+- Windows agent uses a silent notification-area supervisor with Open hub / Restart agent / Exit controls, instead of a persistent PowerShell console.
+- Keeps the stable install URL `npx --yes https://hub.example.com/cli.tgz`. Existing device credentials are preserved.
+
+
 ## 1.0.1 — 2026-10-10
 
 - Windows agent encrypts new device credentials via native user-bound DPAPI, without PowerShell subprocess piping.
