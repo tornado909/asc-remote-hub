@@ -12,7 +12,12 @@ CONFIG="$HOME/.config/asc-remote-hub/agent.json"
 IFS=";" read -r -a ROOTS <<< "$ROOT"
 ARGS=(enroll --hub "$URL" --name "$DEVICE" --roots "${ROOTS[@]}" --config "$CONFIG")
 if [[ "$MODE" == full ]];then ARGS+=(--write --exec);fi
-python3 "$BASE/client/bridge.py" "${ARGS[@]}"
+if [[ "${ASC_HUB_SKIP_ENROLL:-}" != "1" ]];then
+    python3 "$BASE/client/bridge.py" "${ARGS[@]}"
+else
+    [[ -f "$CONFIG" ]] || { echo "No existing device configuration to restore" >&2; exit 1; }
+    echo "Existing Linux enrollment preserved; restoring systemd service."
+fi
 mkdir -p "$HOME/.config/systemd/user"
 SERVICE="$HOME/.config/systemd/user/asc-remote-hub-agent.service"
 printf '[Unit]\nDescription=ASC Remote Hub outbound agent\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=%s %s run --config %s\nRestart=always\nRestartSec=4\n\n[Install]\nWantedBy=default.target\n' "$(command -v python3)" "$BASE/client/bridge.py" "$CONFIG" > "$SERVICE"
