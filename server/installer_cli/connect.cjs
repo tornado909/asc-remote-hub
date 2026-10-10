@@ -11,8 +11,8 @@ const readline=require('node:readline/promises');
 const {once}=require('node:events');
 
 const ORIGIN='__HUB_ORIGIN__';
-const VERSION='1.0.2';
-const ARCHIVE='asc-remote-hub-agent-1.0.2.tar.gz';
+const VERSION='1.0.3';
+const ARCHIVE='asc-remote-hub-agent-1.0.3.tar.gz';
 const CHECKSUM='__ARCHIVE_SHA256__';
 const WIN=process.platform==='win32';
 const HOME=os.homedir();
@@ -196,8 +196,8 @@ async function main(){
   // An interrupted install may leave the agent directory but no credential.
   // Never destroy or re-enroll an already configured device.
   const configured=!opt.dryRun&&fs.existsSync(credentialPath());
+  let existing=null;
   if(configured){
-    let existing;
     try{existing=JSON.parse(fs.readFileSync(credentialPath(),'utf8'));}
     catch(_e){fail('Настройки устройства повреждены. Не перезаписываю действующую привязку.');}
     if(existing.hub_url!==ORIGIN)
@@ -262,7 +262,8 @@ async function main(){
       const venv=path.join(dir,'.venv');
       if(!fs.existsSync(path.join(venv,'Scripts','python.exe')))
         exec(py,['-m','venv',venv]);
-      if(opt.mode==='full'&&!configured){
+      const requiresGui=(opt.mode==='full'&&!configured) || (configured&&existing&&existing.permissions&&existing.permissions.gui===true);
+      if(requiresGui){
         const venvPy=path.join(venv,'Scripts','python.exe');
         const deps=cp.spawnSync(venvPy,['-c',
           'import importlib.metadata as m; m.version("Pillow"); m.version("PyAutoGUI")'],
