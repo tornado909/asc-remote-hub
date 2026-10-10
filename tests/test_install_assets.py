@@ -79,7 +79,8 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertNotIn('src="/static/dashboard.js"',page)
         with urlopen(self.url+"/static/common.js",timeout=8) as response:
             js=response.read().decode("utf8")
-        self.assertIn("location.origin+'/"+CLI+"'",js)
+        self.assertIn("location.origin+'/cli.tgz'",js)
+        self.assertNotIn("location.origin+'/cli-", js)
         self.assertIn("copyInstallValue",js)
         self.assertNotIn("private.example.invalid",js)
 
@@ -98,6 +99,7 @@ class InstallerAssetTests(unittest.TestCase):
                     self.assertNotIn("__HUB_ORIGIN__",code)
                     self.assertNotIn("__ARCHIVE_SHA256__",code)
                     self.assertIn("acquireAgentArchive",code)
+                    self.assertIn("ORIGIN+\'/cli.tgz\'",code)
                     self.assertEqual(tar.extractfile("package/assets/"+AGENT).read(),aa[AGENT].read_bytes())
                     self.assertNotIn("npx.cmd",code)
                     self.assertIn("ASC_HUB_SKIP_ENROLL",code)

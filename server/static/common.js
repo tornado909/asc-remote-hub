@@ -11,7 +11,7 @@ const $=id=>document.getElementById(id);
 const text=(id,value)=>{$(id).textContent=String(value)};
 function notice(id,message){text(id,message)}
 
-const INSTALLER_URL=location.origin+'/cli-1.0.1.tgz';
+const INSTALLER_URL=location.origin+'/cli.tgz';
 const INSTALL_COMMANDS={
   windows:'npx --yes '+INSTALLER_URL,
   linux:'npx --yes '+INSTALLER_URL
