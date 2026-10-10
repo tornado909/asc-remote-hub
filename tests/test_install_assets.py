@@ -104,6 +104,7 @@ class InstallerAssetTests(unittest.TestCase):
                     self.assertNotIn("npx.cmd",code)
                     self.assertIn("ASC_HUB_SKIP_ENROLL",code)
                     self.assertIn("configured=!opt.dryRun&&fs.existsSync(credentialPath())",code)
+                    self.assertIn("existing.permissions.gui===true",code)
                     self.assertIn("Существующие (без изменений)",code)
             with tarfile.open(aa[AGENT],mode="r:gz") as tar:
                 names=tar.getnames()
