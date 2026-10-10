@@ -119,6 +119,23 @@ async function download(file){
     throw error;
   }
 }
+async function acquireAgentArchive(file){
+  // The official CLI release includes an SHA256-verified agent. No second
+  // Cloudflare/GitHub/npm download is needed when installing a local .tgz.
+  const bundled=path.join(__dirname,'..','assets',ARCHIVE);
+  if(fs.existsSync(bundled)){
+    const data=await fsp.readFile(bundled);
+    if(data.length>20*1024*1024)fail('Встроенный архив агента слишком большой.');
+    if(crypto.createHash('sha256').update(data).digest('hex')!==CHECKSUM)
+      fail('Контрольная сумма встроенного архива агента не совпала.');
+    await fsp.writeFile(file,data,{flag:'wx',mode:0o600});
+    console.log('✓ Агент включён в установщик: дополнительная загрузка не требуется.');
+    return data.length;
+  }
+  // Compatibility with older, unbundled distributions.
+  return download(file);
+}
+
 function archiveCheck(file,tar){
   const res=cp.spawnSync(tar,['-tzf',file],{encoding:'utf8',timeout:12000,maxBuffer:1024*1024});
   if(res.error||res.status!==0)fail('Архив повреждён или не поддерживается программой tar.');
@@ -196,7 +213,7 @@ async function main(){
     const file=path.join(tmp,ARCHIVE);
     let size;
     for(let attempt=1;attempt<=3;attempt++){
-      try{size=await download(file);break;}
+      try{size=await acquireAgentArchive(file);break;}
       catch(error){
         const problems=Array.isArray(error.errors)?error.errors:[error];
         const detail=problems.map(e=>[e.code,e.address,e.message].filter(Boolean).join(' ')).join('; ');
