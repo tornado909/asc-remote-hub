@@ -122,7 +122,8 @@ def split_legacy(data_dir: Path) -> dict:
                     with os.fdopen(fd, "ab") as out:
                         out.write(raw)
                         if hasattr(os, "fchmod"):
-                os.fchmod(out.fileno(), 0o600)
+                if hasattr(os, "fchmod"):
+                    os.fchmod(out.fileno(), 0o600)
                     counts[str(destination.relative_to(staging))] += 1
         # Validate every original entry byte-for-byte with a multiset digest.
         dest_hashes: Counter[str] = Counter()
