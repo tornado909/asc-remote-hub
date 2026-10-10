@@ -21,7 +21,7 @@ Agents initiate connections to your gateway, so they do not require inbound port
 
 ## Features
 
-- **One-command installation** from your own domain: `npx --yes https://YOUR_DOMAIN/cli-1.0.0.tgz`. Windows uses `npx.cmd`.
+- **One-command installation** from your own domain: `npx --yes https://YOUR_DOMAIN/cli-1.0.1.tgz`. Windows and Linux use the same `npx` command.
 - **Free registration** and account-separated devices, tokens and usage statistics.
 - **OAuth 2.1 authorization-code + PKCE** for the ChatGPT MCP connection; each token belongs to a specific account and MCP resource.
 - **File operations:** enumerate, search, read, create, replace exact text, inspect and move within permitted roots.
@@ -77,15 +77,15 @@ Open `https://hub.example.com`, create an account and click **Add device** to ob
 
 | Operating system | Command |
 | --- | --- |
-| Windows (PowerShell) | `npx.cmd --yes https://hub.example.com/cli-1.0.0.tgz` |
-| Linux | `npx --yes https://hub.example.com/cli-1.0.0.tgz` |
+| Windows (PowerShell) | `npx --yes https://hub.example.com/cli-1.0.1.tgz` |
+| Linux | `npx --yes https://hub.example.com/cli-1.0.1.tgz` |
 
 The CLI requires **Node.js 18+**, **Python 3.10+** and `tar`. Node.js is only used for installation; the running agent uses Python. It verifies the SHA-256 of the download, prompts for a one-time code, asks for the allowed folders and permissions and configures autostart.
 
 Safe installation preview on a computer with no setup changes:
 
 ```bash
-npx --yes https://hub.example.com/cli-1.0.0.tgz --dry-run
+npx --yes https://hub.example.com/cli-1.0.1.tgz --dry-run
 ```
 
 By default only read-only file operations are allowed. Write access, command execution and (on Windows) GUI control require explicit selection. Do not enable full access on devices that hold sensitive workloads unless you understand the risks.
