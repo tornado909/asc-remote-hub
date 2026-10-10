@@ -88,6 +88,10 @@ Safe installation preview on a computer with no setup changes:
 npx --yes https://hub.example.com/cli.tgz --dry-run
 ```
 
+**Windows:** The agent runs in the system tray, without an open terminal. Right-click the tray icon for **Open hub**, **Restart agent**, or **Exit**. Exit stops it until the next login or manual task launch; the existing device credential is retained. Agent stdout/stderr logs are stored in `%LOCALAPPDATA%\\ASC-Remote-Hub\\logs`.
+
+**Linux:** Running the installer as an unprivileged user creates a systemd *user* unit. Running it directly as `root` creates a system-wide systemd service (`/etc/systemd/system/asc-remote-hub-agent.service`). **Full access under root lets remote commands run with root privileges; only choose this for machines you explicitly authorize.** No re-enrollment is needed for an existing valid device token.
+
 By default only read-only file operations are allowed. Write access, command execution and (on Windows) GUI control require explicit selection. Do not enable full access on devices that hold sensitive workloads unless you understand the risks.
 
 ## Add to ChatGPT
