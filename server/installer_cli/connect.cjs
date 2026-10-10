@@ -209,7 +209,7 @@ async function main(){
   }
   const tmp=await fsp.mkdtemp(path.join(os.tmpdir(),'asc-hub-setup-'));
   try{
-    console.log('Скачиваю проверенный пакет с собственного хаба...');
+    console.log('Проверяю пакет агента...');
     const file=path.join(tmp,ARCHIVE);
     let size;
     for(let attempt=1;attempt<=3;attempt++){
