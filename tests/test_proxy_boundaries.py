@@ -44,7 +44,7 @@ class TrustTests(unittest.TestCase):
             self.assertIn(ipaddress.ip_address("192.0.2.123"),hub.trusted_proxies[0])
 
     def test_different_hub_url_does_not_leak_other_origin(self):
-        package=self.hub.public_packages["cli-1.0.0.tgz"]
+        package=self.hub.public_packages[next(key for key in self.hub.public_packages if key.startswith("cli-"))]
         import tarfile
         with tarfile.open(package,"r:gz") as archive:
             src=archive.extractfile("package/bin/connect.cjs").read().decode()

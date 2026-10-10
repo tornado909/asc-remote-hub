@@ -6,6 +6,10 @@ permissions on Linux. No OpenAI API keys and no Desktop Commander required.
 """
 from __future__ import annotations
 import argparse
+import base64
+import ctypes
+from ctypes import wintypes
+import tempfile
 from contextlib import contextmanager
 import threading
 import getpass
@@ -22,7 +26,7 @@ from urllib.request import Request,urlopen
 from urllib.parse import urlparse
 from asc_remote_commander import Agent
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 
 
 def default_config() -> Path:
@@ -53,14 +57,73 @@ def request(hub: str, path: str, data: dict, token: str="", device_id: str="", t
     return result
 
 
-def powershell_encrypt(text: str) -> str:
-    script=("$ErrorActionPreference='Stop';"
-            "$plain=[Console]::In.ReadToEnd();"
-            "$sec=ConvertTo-SecureString -String $plain -AsPlainText -Force;"
-            "[Console]::Out.Write((ConvertFrom-SecureString $sec))")
-    result=subprocess.run(["powershell.exe","-NoProfile","-NonInteractive","-Command",script],
-                          input=text.encode("utf-8"),capture_output=True,check=True,timeout=20)
-    return result.stdout.decode("utf-8").strip()
+class _DataBlob(ctypes.Structure):
+    _fields_ = [
+        ("cbData", wintypes.DWORD),
+        ("pbData", ctypes.POINTER(ctypes.c_ubyte)),
+    ]
+
+
+def _windows_dpapi(data: bytes, *, decrypt: bool = False) -> bytes:
+    """Windows CryptoAPI DPAPI bound to the interactive Windows user.
+
+    Invoke the OS API directly; never pass device tokens to PowerShell or the
+    command line. CryptProtectData requires a loaded user profile.
+    """
+    if os.name != "nt":
+        raise RuntimeError("Windows DPAPI requires Windows")
+    crypto = ctypes.WinDLL("crypt32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    crypto.CryptProtectData.argtypes = [
+        ctypes.POINTER(_DataBlob), ctypes.c_wchar_p, ctypes.c_void_p,
+        ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(_DataBlob),
+    ]
+    crypto.CryptProtectData.restype = wintypes.BOOL
+    crypto.CryptUnprotectData.argtypes = [
+        ctypes.POINTER(_DataBlob), ctypes.c_void_p, ctypes.c_void_p,
+        ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(_DataBlob),
+    ]
+    crypto.CryptUnprotectData.restype = wintypes.BOOL
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    source_buffer = ctypes.create_string_buffer(data)
+    source = _DataBlob(len(data), ctypes.cast(source_buffer, ctypes.POINTER(ctypes.c_ubyte)))
+    destination = _DataBlob()
+    operation = crypto.CryptUnprotectData if decrypt else crypto.CryptProtectData
+    if not operation(ctypes.byref(source), None, None, None, None, 0,
+                     ctypes.byref(destination)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return ctypes.string_at(destination.pbData, destination.cbData)
+    finally:
+        kernel.LocalFree(ctypes.cast(destination.pbData, ctypes.c_void_p))
+
+
+def encrypt_secret(token: str) -> str:
+    return "dpapi1:" + base64.b64encode(_windows_dpapi(token.encode("utf-8"))).decode("ascii")
+
+
+def decrypt_secret(value: str) -> str:
+    if value.startswith("dpapi1:"):
+        data = base64.b64decode(value[len("dpapi1:"):], validate=True)
+        return _windows_dpapi(data, decrypt=True).decode("utf-8")
+    # Backwards compatibility for already-paired Windows devices (v1.0.0).
+    return powershell_decrypt(value)
+
+
+def preflight_credentials(config_path: Path):
+    """Fail BEFORE redeeming a single-use pairing code."""
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        probe = "ASC-REMOTE-HUB-WINDOWS-DPAPI-SELFTEST"
+        if decrypt_secret(encrypt_secret(probe)) != probe:
+            raise RuntimeError("Windows DPAPI self-test did not roundtrip")
+    fd, filename = tempfile.mkstemp(prefix=".asc-key-check-", dir=config_path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            out.write("ok")
+    finally:
+        Path(filename).unlink(missing_ok=True)
 
 
 def powershell_decrypt(value: str) -> str:
@@ -98,15 +161,18 @@ def enroll(args):
                      ("gui","ASC_RC_ALLOW_GUI"),("delete","ASC_RC_ALLOW_DELETE")):
         os.environ[env]="1" if permissions[prop] else "0"
     agent=Agent()
+    confpath=Path(args.config).expanduser().resolve()
+    secretpath=confpath.with_name("device-key.dpapi" if os.name=="nt" else "device-key.secret")
+    if confpath.exists():
+        raise RuntimeError("This device is already configured. Reuse its existing pairing.")
+    preflight_credentials(confpath)
     code=os.environ.pop("ASC_HUB_PAIRING_CODE","") or getpass.getpass("One-time pairing code from your ASC Hub: ")
     result=request(hub,"/agent/enroll",{"pairing_code":code,"name":args.name,
                                          "platform":platform.platform(),"tools":list(agent.tools)})
     token=result.get("device_token","")
     if not isinstance(token,str) or len(token)<32:
         raise ValueError("Hub did not return a valid device token")
-    confpath=Path(args.config).expanduser().resolve()
-    secretpath=confpath.with_name("device-key.dpapi" if os.name=="nt" else "device-key.secret")
-    secure_write(secretpath,powershell_encrypt(token) if os.name=="nt" else token)
+    secure_write(secretpath,encrypt_secret(token) if os.name=="nt" else token)
     secure_write(confpath,json.dumps({"hub_url":hub,"device_id":result["device_id"],
                                        "token_file":str(secretpath),"name":args.name,
                                        "roots":args.roots,"permissions":permissions},
@@ -121,7 +187,7 @@ def load_config(path: Path):
     check_url(conf["hub_url"])
     tokenpath=Path(conf["token_file"])
     encrypted=tokenpath.read_text(encoding="utf-8").strip()
-    token=powershell_decrypt(encrypted) if os.name=="nt" else encrypted
+    token=decrypt_secret(encrypted) if os.name=="nt" else encrypted
     if not isinstance(token,str) or len(token)<32:
         raise ValueError("Invalid locally stored device credential")
     roots=conf.get("roots",[])
@@ -258,6 +324,13 @@ def run(args):
             heart.join(timeout=2)
 
 
+
+def check_existing(args):
+    """Validate local configuration without printing device credentials."""
+    cfg, _token, _agent = load_config(Path(args.config).expanduser().resolve())
+    print("Existing device credential is usable; device:", cfg["device_id"])
+    print("Hub:", cfg["hub_url"])
+
 def main():
     ap=argparse.ArgumentParser(description="ASC Remote Hub outbound device agent")
     sub=ap.add_subparsers(dest="action",required=True)
@@ -270,10 +343,12 @@ def main():
     en.add_argument("--gui",action="store_true")
     en.add_argument("--delete",action="store_true")
     en.add_argument("--config",default=str(default_config()))
+    check=sub.add_parser("check",help="Validate saved credentials without re-enrollment")
+    check.add_argument("--config",default=str(default_config()))
     start=sub.add_parser("run",help="Start persistent outbound-only polling")
     start.add_argument("--config",default=str(default_config()))
     args=ap.parse_args()
-    (enroll if args.action=="enroll" else run)(args)
+    (enroll if args.action=="enroll" else (check_existing if args.action=="check" else run))(args)
 
 if __name__=="__main__":
     main()

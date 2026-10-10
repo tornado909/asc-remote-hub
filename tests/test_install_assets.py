@@ -79,7 +79,7 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertNotIn('src="/static/dashboard.js"',page)
         with urlopen(self.url+"/static/common.js",timeout=8) as response:
             js=response.read().decode("utf8")
-        self.assertIn("location.origin+'/cli-1.0.0.tgz'",js)
+        self.assertIn("location.origin+'/"+CLI+"'",js)
         self.assertIn("copyInstallValue",js)
         self.assertNotIn("private.example.invalid",js)
 
@@ -97,6 +97,10 @@ class InstallerAssetTests(unittest.TestCase):
                     self.assertNotIn("private.example.invalid",code)
                     self.assertNotIn("__HUB_ORIGIN__",code)
                     self.assertNotIn("__ARCHIVE_SHA256__",code)
+                    self.assertNotIn("npx.cmd",code)
+                    self.assertIn("ASC_HUB_SKIP_ENROLL",code)
+                    self.assertIn("configured=fs.existsSync(credentialPath())",code)
+                    self.assertIn("Существующие (без изменений)",code)
             with tarfile.open(aa[AGENT],mode="r:gz") as tar:
                 names=tar.getnames()
                 self.assertTrue(all(x.startswith("asc-remote-hub/") for x in names))

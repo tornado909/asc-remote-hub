@@ -58,13 +58,13 @@ docker compose up -d --build hub
 В Windows PowerShell:
 
 ```powershell
-npx.cmd --yes https://hub.example.com/cli-1.0.0.tgz
+npx --yes https://hub.example.com/cli-1.0.1.tgz
 ```
 
 В Linux:
 
 ```bash
-npx --yes https://hub.example.com/cli-1.0.0.tgz
+npx --yes https://hub.example.com/cli-1.0.1.tgz
 ```
 
 Установщик проверит SHA-256 архива, попросит выбрать разрешённые каталоги и уровень доступа, затем получит код привязки. Нужны Node.js 18+, Python 3.10+ и tar. Node.js нужен только для установки. `--dry-run` проверяет готовность без изменения компьютера.

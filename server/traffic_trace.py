@@ -98,7 +98,8 @@ class TrafficTrace:
                 flags |= getattr(os, "O_NOFOLLOW", 0)
                 fd = os.open(path, flags, 0o600)
                 with os.fdopen(fd, "ab") as out:
-                    os.fchmod(out.fileno(), 0o600)
+                    if hasattr(os, "fchmod"):
+                        os.fchmod(out.fileno(), 0o600)
                     out.write(line)
         except (OSError, ValueError, TypeError) as exc:
             # Trace failures do not prevent the actual MCP/agent operation.

@@ -11,14 +11,14 @@ const readline=require('node:readline/promises');
 const {once}=require('node:events');
 
 const ORIGIN='__HUB_ORIGIN__';
-const VERSION='1.0.0';
-const ARCHIVE='asc-remote-hub-agent-1.0.0.tar.gz';
+const VERSION='1.0.1';
+const ARCHIVE='asc-remote-hub-agent-1.0.1.tar.gz';
 const CHECKSUM='__ARCHIVE_SHA256__';
 const WIN=process.platform==='win32';
 const HOME=os.homedir();
 
 function help(){
-  const npx=WIN?'npx.cmd':'npx';
+  const npx='npx';
   console.log([
     'ASC Remote Hub '+VERSION+' — подключение устройства',
     '',
@@ -175,15 +175,37 @@ async function main(){
   const {py,tar}=environment();
   const allowed=roots(opt.roots);
   const dir=path.join(HOME,'.asc-remote-hub','agent');
-  if(!opt.dryRun&&(fs.existsSync(credentialPath())||fs.existsSync(dir))){
-    fail('Устройство уже подключено или найдена папка агента. '+
-         'Установщик не перезаписывает существующие подключения.');
+  // An interrupted install may leave the agent directory but no credential.
+  // Never destroy or re-enroll an already configured device.
+  const configured=fs.existsSync(credentialPath());
+  if(configured){
+    let existing;
+    try{existing=JSON.parse(fs.readFileSync(credentialPath(),'utf8'));}
+    catch(_e){fail('Настройки устройства повреждены. Не перезаписываю действующую привязку.');}
+    if(existing.hub_url!==ORIGIN)
+      fail('Устройство привязано к другому хабу. Существующий токен сохранён.');
+    if(!existing.device_id||!existing.token_file||!fs.existsSync(existing.token_file))
+      fail('В настройках отсутствует ключ устройства. Исправьте привязку в кабинете без удаления других устройств.');
+  } else if(fs.existsSync(dir)){
+    console.log('Обнаружена незавершённая установка. Продолжаю, сохраняя существующие файлы и окружение.');
+    console.log('Если устройство уже появилось в кабинете как офлайн, отвяжите только его и создайте новый код.');
   }
   const tmp=await fsp.mkdtemp(path.join(os.tmpdir(),'asc-hub-setup-'));
   try{
     console.log('Скачиваю проверенный пакет с собственного хаба...');
     const file=path.join(tmp,ARCHIVE);
-    const size=await download(file);
+    let size;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{size=await download(file);break;}
+      catch(error){
+        const problems=Array.isArray(error.errors)?error.errors:[error];
+        const detail=problems.map(e=>[e.code,e.address,e.message].filter(Boolean).join(' ')).join('; ');
+        if(attempt===3)fail('Не удалось скачать пакет за 3 попытки: '+detail+
+          '. Проверьте доступ к '+ORIGIN+' и настройки сети/прокси.');
+        console.log('Ошибка загрузки ('+detail+'). Повтор через '+attempt+' сек...');
+        await new Promise(resolve=>setTimeout(resolve,1000*attempt));
+      }
+    }
     archiveCheck(file,tar);
     console.log('✓ SHA-256 подтверждён; архив '+Math.ceil(size/1024)+' КБ.');
     console.log('✓ Python 3.10+ обнаружен.');
@@ -191,7 +213,7 @@ async function main(){
       console.log('✓ Проверка пройдена. Ничего не установлено и не зарегистрировано.');
       return;
     }
-    if(!opt.mode){
+    if(!opt.mode&&!configured){
       console.log('\nВыберите разрешения:');
       console.log('  1 — Только чтение (рекомендуется)');
       console.log('  2 — Полный доступ: файлы, терминал'+(WIN?', GUI':''));
@@ -200,7 +222,7 @@ async function main(){
       opt.mode=answer==='2'?'full':'read-only';
     }
     console.log('Каталоги: '+allowed);
-    console.log('Разрешения: '+(opt.mode==='full'?'Полные':'Только чтение'));
+    console.log('Разрешения: '+(configured?'Существующие (без изменений)':(opt.mode==='full'?'Полные':'Только чтение')));
     const tmpdir=path.join(tmp,'unpacked');
     await fsp.mkdir(tmpdir,{recursive:true});
     exec(tar,['-xzf',file,'-C',tmpdir],{stdio:'pipe'});
@@ -209,34 +231,55 @@ async function main(){
       fail('В пакете отсутствует агент.');
     }
     await fsp.mkdir(path.dirname(dir),{recursive:true});
-    await fsp.rename(source,dir);
+    if(fs.existsSync(dir)){
+      // Copy only verified release files; retain the existing .venv and
+      // credentials. Never remove the directory on retries.
+      await fsp.cp(source,dir,{recursive:true,force:true});
+      console.log('✓ Файлы агента обновлены, данные существующего подключения сохранены.');
+    }else{
+      await fsp.rename(source,dir);
+    }
     if(WIN){
       console.log('Создаю изолированное Python-окружение агента...');
       const venv=path.join(dir,'.venv');
-      exec(py,['-m','venv',venv]);
-      if(opt.mode==='full'){
+      if(!fs.existsSync(path.join(venv,'Scripts','python.exe')))
+        exec(py,['-m','venv',venv]);
+      if(opt.mode==='full'&&!configured){
         console.log('Устанавливаю GUI-зависимости в отдельное окружение...');
         exec(path.join(venv,'Scripts','python.exe'),
           ['-m','pip','install','--disable-pip-version-check',
            'Pillow>=10,<13','PyAutoGUI>=0.9.54,<0.10']);
       }
     }
-    console.log('\nОткройте '+ORIGIN+' → «+ Добавить устройство».');
-    const pairing=await secret('Одноразовый код (ввод скрыт): ');
-    if(!/^[A-Za-z0-9_-]{24,256}$/.test(pairing))fail('Некорректный код привязки.');
-    const env={...process.env,ASC_HUB_PAIRING_CODE:pairing};
-    console.log('Привязываю устройство '+opt.name+' ...');
+    let pairing='';
+    if(configured){
+      const checker=cp.spawnSync(WIN?path.join(dir,'.venv','Scripts','python.exe'):py,
+        [path.join(dir,'client','bridge.py'),'check','--config',credentialPath()],
+        {encoding:'utf8',timeout:20000,windowsHide:true});
+      if(checker.error||checker.status!==0)
+        fail('Не удалось проверить существующий зашифрованный ключ. Не перезаписываю его. Проверьте Windows-профиль или состояние привязки.');
+      console.log('✓ Действующая привязка подтверждена. Восстанавливаю автозапуск.');
+    } else{
+      console.log('\nОткройте '+ORIGIN+' → «+ Добавить устройство».');
+      pairing=await secret('Одноразовый код (ввод скрыт): ');
+      if(!/^[A-Za-z0-9_-]{24,256}$/.test(pairing))fail('Некорректный код привязки.');
+      console.log('Привязываю устройство '+opt.name+' ...');
+    }
+    const env={...process.env};
+    if(configured)env.ASC_HUB_SKIP_ENROLL='1';
+    else env.ASC_HUB_PAIRING_CODE=pairing;
     if(WIN){
       const args=['-NoProfile','-ExecutionPolicy','Bypass','-File',
         path.join(dir,'install','install_windows.ps1'),
         '-HubUrl',ORIGIN,'-DeviceName',opt.name,'-Roots',allowed];
-      if(opt.mode==='full')args.push('-FullAccess');
+      if(opt.mode==='full'&&!configured)args.push('-FullAccess');
+      if(configured)args.push('-SkipEnrollment');
       exec('powershell.exe',args,{env});
     }else{
       exec('bash',[path.join(dir,'install','install_linux.sh'),
         ORIGIN,opt.name,allowed,opt.mode],{env});
     }
-    console.log('\n✓ Устройство подключено! Проверьте статус на '+ORIGIN);
+    console.log('\n✓ Установка завершена! Проверьте статус устройства на '+ORIGIN);
     console.log('Node.js больше не нужен для работы агента.');
   }finally{
     await fsp.rm(tmp,{recursive:true,force:true}).catch(()=>{});

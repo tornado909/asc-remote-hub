@@ -16,7 +16,7 @@ import re
 import tarfile
 import tempfile
 
-RELEASE = "1.0.0"
+RELEASE = "1.0.1"
 CLI = f"cli-{RELEASE}.tgz"
 AGENT = f"asc-remote-hub-agent-{RELEASE}.tar.gz"
 ALLOWED_FILES = (
@@ -50,7 +50,8 @@ def _safe_output(dir: Path, name: str, content: bytes) -> Path:
     dest = dir / name
     fd, temporary = tempfile.mkstemp(prefix=".asc-dist-", suffix=".tmp", dir=dir)
     try:
-        os.fchmod(fd, 0o600)
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
         with os.fdopen(fd, "wb") as handle:
             handle.write(content)
             handle.flush()
