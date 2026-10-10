@@ -22,7 +22,7 @@ function help(){
   console.log([
     'ASC Remote Hub '+VERSION+' — подключение устройства',
     '',
-    'Команда: '+npx+' --yes '+ORIGIN+'/cli-1.0.0.tgz',
+    'Команда: '+npx+' --yes '+ORIGIN+'/cli-1.0.1.tgz',
     '',
     '1. Зарегистрируйтесь на '+ORIGIN,
     '2. В кабинете нажмите «+ Добавить устройство»',
@@ -119,6 +119,23 @@ async function download(file){
     throw error;
   }
 }
+async function acquireAgentArchive(file){
+  // The official CLI release includes an SHA256-verified agent. No second
+  // Cloudflare/GitHub/npm download is needed when installing a local .tgz.
+  const bundled=path.join(__dirname,'..','assets',ARCHIVE);
+  if(fs.existsSync(bundled)){
+    const data=await fsp.readFile(bundled);
+    if(data.length>20*1024*1024)fail('Встроенный архив агента слишком большой.');
+    if(crypto.createHash('sha256').update(data).digest('hex')!==CHECKSUM)
+      fail('Контрольная сумма встроенного архива агента не совпала.');
+    await fsp.writeFile(file,data,{flag:'wx',mode:0o600});
+    console.log('✓ Агент включён в установщик: дополнительная загрузка не требуется.');
+    return data.length;
+  }
+  // Compatibility with older, unbundled distributions.
+  return download(file);
+}
+
 function archiveCheck(file,tar){
   const res=cp.spawnSync(tar,['-tzf',file],{encoding:'utf8',timeout:12000,maxBuffer:1024*1024});
   if(res.error||res.status!==0)fail('Архив повреждён или не поддерживается программой tar.');
@@ -177,7 +194,7 @@ async function main(){
   const dir=path.join(HOME,'.asc-remote-hub','agent');
   // An interrupted install may leave the agent directory but no credential.
   // Never destroy or re-enroll an already configured device.
-  const configured=fs.existsSync(credentialPath());
+  const configured=!opt.dryRun&&fs.existsSync(credentialPath());
   if(configured){
     let existing;
     try{existing=JSON.parse(fs.readFileSync(credentialPath(),'utf8'));}
@@ -186,17 +203,17 @@ async function main(){
       fail('Устройство привязано к другому хабу. Существующий токен сохранён.');
     if(!existing.device_id||!existing.token_file||!fs.existsSync(existing.token_file))
       fail('В настройках отсутствует ключ устройства. Исправьте привязку в кабинете без удаления других устройств.');
-  } else if(fs.existsSync(dir)){
+  } else if(!opt.dryRun&&fs.existsSync(dir)){
     console.log('Обнаружена незавершённая установка. Продолжаю, сохраняя существующие файлы и окружение.');
     console.log('Если устройство уже появилось в кабинете как офлайн, отвяжите только его и создайте новый код.');
   }
   const tmp=await fsp.mkdtemp(path.join(os.tmpdir(),'asc-hub-setup-'));
   try{
-    console.log('Скачиваю проверенный пакет с собственного хаба...');
+    console.log('Проверяю пакет агента...');
     const file=path.join(tmp,ARCHIVE);
     let size;
     for(let attempt=1;attempt<=3;attempt++){
-      try{size=await download(file);break;}
+      try{size=await acquireAgentArchive(file);break;}
       catch(error){
         const problems=Array.isArray(error.errors)?error.errors:[error];
         const detail=problems.map(e=>[e.code,e.address,e.message].filter(Boolean).join(' ')).join('; ');
@@ -245,10 +262,15 @@ async function main(){
       if(!fs.existsSync(path.join(venv,'Scripts','python.exe')))
         exec(py,['-m','venv',venv]);
       if(opt.mode==='full'&&!configured){
-        console.log('Устанавливаю GUI-зависимости в отдельное окружение...');
-        exec(path.join(venv,'Scripts','python.exe'),
-          ['-m','pip','install','--disable-pip-version-check',
-           'Pillow>=10,<13','PyAutoGUI>=0.9.54,<0.10']);
+        const venvPy=path.join(venv,'Scripts','python.exe');
+        const deps=cp.spawnSync(venvPy,['-c',
+          'import importlib.metadata as m; m.version("Pillow"); m.version("PyAutoGUI")'],
+          {stdio:'ignore',windowsHide:true,timeout:10000});
+        if(deps.status!==0){
+          console.log('Устанавливаю GUI-зависимости в отдельное окружение...');
+          exec(venvPy,['-m','pip','install','--disable-pip-version-check',
+            'Pillow>=10,<13','PyAutoGUI>=0.9.54,<0.10']);
+        }else console.log('✓ GUI-зависимости уже установлены; повторная загрузка не нужна.');
       }
     }
     let pairing='';

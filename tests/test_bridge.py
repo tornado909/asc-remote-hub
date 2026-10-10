@@ -75,6 +75,19 @@ class WindowsCredentialTests(unittest.TestCase):
             self.assertNotIn(sample,encrypted)
             self.assertEqual(decrypt_secret(encrypted),sample)
 
+    @unittest.skipUnless(sys.platform=="win32","Windows-only legacy credentials")
+    def test_existing_legacy_windows_key_remains_readable(self):
+        import subprocess
+        from bridge import decrypt_secret
+        sample="ASC-HUB-LEGACY-TEST-NONSECRET"
+        script=("$ErrorActionPreference='Stop';"
+                "$plain=[Console]::In.ReadToEnd();"
+                "$sec=ConvertTo-SecureString -String $plain -AsPlainText -Force;"
+                "[Console]::Out.Write((ConvertFrom-SecureString $sec))")
+        process=subprocess.run(["powershell.exe","-NoProfile","-NonInteractive","-Command",script],
+                               input=sample.encode(),capture_output=True,timeout=20,check=True)
+        self.assertEqual(decrypt_secret(process.stdout.decode().strip()), sample)
+
     def test_enrollment_preflight_runs_before_one_time_code_redemption(self):
         import os
         from types import SimpleNamespace

@@ -111,7 +111,7 @@ def build_distributions(project_root: Path, data_dir: Path, origin: str) -> dict
         "bin": {"asc-remote-hub": "bin/connect.cjs"},
         "engines": {"node": ">=18"},
         "os": ["win32", "linux"],
-        "files": ["bin/connect.cjs", "README.md"]
+        "files": ["bin/connect.cjs", "README.md", "assets/"+AGENT]
     }
     cli_guide = (
         "# ASC Remote Hub CLI\\n\\n"
@@ -120,6 +120,7 @@ def build_distributions(project_root: Path, data_dir: Path, origin: str) -> dict
         "No npm registry publishing, platform API key, or paid tunnel required.\\n"
     ).replace("\\n", "\n")
     cli_raw = _tar_bytes({
+        "package/assets/" + AGENT: (agent_raw, 0o644),
         "package/package.json": (json.dumps(manifest, ensure_ascii=False, indent=2).encode() + b"\n", 0o644),
         "package/bin/connect.cjs": (cli_js.encode("utf-8"), 0o755),
         "package/README.md": (cli_guide.encode(), 0o644),
