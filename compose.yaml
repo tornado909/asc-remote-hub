@@ -1,0 +1,54 @@
+services:
+  hub:
+    build: .
+    container_name: asc-remote-hub
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      ASC_HUB_URL: "${ASC_HUB_URL:?Set the public HTTPS origin}"
+      ASC_HUB_DATA: /data
+      ASC_HUB_LISTEN: 0.0.0.0
+      ASC_HUB_PORT: "8765"
+      ASC_HUB_TRUSTED_PROXIES: "${ASC_HUB_TRUSTED_PROXIES:-}"
+      ASC_HUB_TRACE_PAYLOADS: "${ASC_HUB_TRACE_PAYLOADS:-0}"
+      ASC_HUB_TRACE_ACCOUNT: "${ASC_HUB_TRACE_ACCOUNT:-}"
+      ASC_HUB_TRACE_MAX_MB: "${ASC_HUB_TRACE_MAX_MB:-64}"
+      ASC_HUB_TRACE_BACKUPS: "${ASC_HUB_TRACE_BACKUPS:-4}"
+    volumes:
+      - ./data:/data
+    ports:
+      # Loopback by default. Expose only to a trusted HTTPS reverse proxy.
+      - "${ASC_BIND_IP:-127.0.0.1}:${ASC_BIND_PORT:-18765}:8765"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket;s=socket.create_connection(('127.0.0.1',8765),2);s.close()"]
+      interval: 30s
+      timeout: 4s
+      retries: 3
+
+  caddy:
+    image: caddy:2.9
+    profiles: ["public"]
+    restart: unless-stopped
+    environment:
+      ASC_HUB_DOMAIN: "${ASC_HUB_DOMAIN:-hub.example.com}"
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+    depends_on: [hub]
+
+volumes:
+  caddy_data:
+  caddy_config:

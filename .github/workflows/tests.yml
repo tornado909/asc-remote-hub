@@ -1,0 +1,56 @@
+name: Unit and integration tests
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Independent open-source secret scanning works on PRIVATE repositories
+      # without purchasing GitHub Secret Protection. Pin the binary SHA256.
+      - name: Install pinned Gitleaks
+        env:
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --output "$RUNNER_TEMP/gitleaks.tar.gz" "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check --
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          chmod 700 "$RUNNER_TEMP/gitleaks"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Scan entire Git history for secrets
+        run: gitleaks git --no-banner --redact=100 --exit-code 1 --log-opts="--all" .
+      - name: Scan working tree for secrets
+        run: gitleaks dir --no-banner --redact=100 --exit-code 1 .
+      - name: Python unit and HTTP integration tests
+        run: python3 -m unittest discover -s tests -q
+      - name: Node.js syntax
+        run: |
+          node --check server/static/common.js
+          node --check server/static/auth.js
+          node --check server/static/dashboard.js
+          node --check server/installer_cli/connect.cjs
+      - name: Browser scripts (mocked DOM and requests)
+        run: node tests/browser_bootstrap.cjs
+      - name: Check public tree for accidental private data
+        run: python3 scripts/check_public_tree.py
+
+# No artifact uploads: this workflow does not consume GitHub Actions artifact storage.

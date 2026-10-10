@@ -1,0 +1,781 @@
+[
+  {
+    "name": "machine_info",
+    "description": "Identify this connected computer, its operating system and granted capabilities. Does not read environment secrets.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "list_directory",
+    "description": "List files and folders inside an allowed directory (max 200 entries).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Number of entries",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "stat_path",
+    "description": "Get size, type and modification time for an allowed file or directory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "read_file",
+    "description": "Read a bounded range of UTF-8 text lines from an allowed file; reports next line offset.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Zero-based first line",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max lines",
+          "minimum": 1,
+          "maximum": 500
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "search_files",
+    "description": "Find filenames matching a glob inside an allowed directory; does not follow symlinked directories.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Filename glob, for example *.py"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max matches",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "depth": {
+          "type": "integer",
+          "description": "Maximum directory depth",
+          "minimum": 0,
+          "maximum": 10
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path",
+        "pattern"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "write_file",
+    "description": "Create/append/overwrite UTF-8 text under an allowed root. Overwrite destroys the old content. Maximum 256 KB per call.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "text": {
+          "type": "string",
+          "description": "UTF-8 text to write"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "create",
+            "append",
+            "overwrite"
+          ],
+          "default": "create"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path",
+        "text"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "replace_text",
+    "description": "Replace an exact string in an existing UTF-8 file; fails unless match count equals expected_count.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "old_text": {
+          "type": "string",
+          "description": "Exact existing text"
+        },
+        "new_text": {
+          "type": "string",
+          "description": "Replacement text"
+        },
+        "expected_count": {
+          "type": "integer",
+          "description": "Expected number of replacements",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path",
+        "old_text",
+        "new_text"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "create_directory",
+    "description": "Create a directory inside an allowed root, including missing parents.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "move_path",
+    "description": "Move a file or directory between two allowed paths. Will not overwrite the destination.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "source": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "destination": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "source",
+        "destination"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "run_command",
+    "description": "Run a local program WITHOUT a shell, wait up to 120 seconds, return exit code and bounded output. program + args are executed on the connected device. Commands can change files and access the network.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "program": {
+          "type": "string",
+          "description": "Executable name or path, e.g. python or powershell.exe"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "description": "Timeout",
+          "minimum": 1,
+          "maximum": 120
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "program"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "start_process",
+    "description": "Start a long-running local program without a shell; returns job ID for later reading/stopping.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "program": {
+          "type": "string",
+          "description": "Executable"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "program"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "read_process",
+    "description": "Get bounded stdout/stderr and running status from a process started by this agent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "job_id": {
+          "type": "string",
+          "description": "Job ID from start_process"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Byte offset",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max bytes",
+          "minimum": 1,
+          "maximum": 100000
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "job_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "stop_process",
+    "description": "Terminate a job created in this agent session (never an arbitrary PID).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "job_id": {
+          "type": "string",
+          "description": "Job ID from start_process"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "job_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "screenshot",
+    "description": "Capture the current interactive desktop as a PNG image (may show personal information). Requires active graphical session and Pillow.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "max_width": {
+          "type": "integer",
+          "description": "Downsample width",
+          "minimum": 320,
+          "maximum": 2400
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "click_mouse",
+    "description": "Click within the interactive desktop. PyAutoGUI fail-safe is enabled.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "x": {
+          "type": "integer",
+          "description": "Screen X",
+          "minimum": 0,
+          "maximum": 20000
+        },
+        "y": {
+          "type": "integer",
+          "description": "Screen Y",
+          "minimum": 0,
+          "maximum": 20000
+        },
+        "button": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ]
+        },
+        "clicks": {
+          "type": "integer",
+          "description": "Number of clicks",
+          "minimum": 1,
+          "maximum": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "x",
+        "y"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "type_text",
+    "description": "Type text into the focused window. On Windows, Unicode input is supported. This changes the active application.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "text": {
+          "type": "string",
+          "description": "Text, at most 4000 characters"
+        },
+        "interval_ms": {
+          "type": "integer",
+          "description": "Delay between characters",
+          "minimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "text"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "press_keys",
+    "description": "Send a key or shortcut to the focused window using PyAutoGUI, e.g. ['ctrl','s'].",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "keys"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "scroll_mouse",
+    "description": "Scroll at the cursor position; positive values scroll up.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "clicks": {
+          "type": "integer",
+          "description": "Absolute number of notches",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "clicks",
+        "direction"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  }
+]

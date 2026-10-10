@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASC Remote Hub</title><link rel="stylesheet" href="/static/style.css"></head><body>
+<header><div class="brand"><span class="logo">⌘</span> ASC Remote Hub</div><div id="userbar"></div></header>
+<main>
+<section class="card quick-installer" id="quick-installer">
+  <div class="install-heading">
+    <div>
+      <div class="eyebrow">Подключение нового компьютера</div>
+      <h2>Подключите Windows или Linux одной командой</h2>
+      <p class="sub">Установщик с нашего сервера проверит пакет, попросит код привязки и настроит автозапуск. Без платного туннеля.</p>
+    </div>
+    <div class="install-brand">ASC Remote Hub</div>
+  </div>
+  <div class="install-steps" aria-label="Этапы подключения">
+    <span><b>1</b> Скопировать команду</span>
+    <span><b>2</b> Запустить в терминале</span>
+    <span><b>3</b> Ввести код привязки</span>
+  </div>
+  <div class="install-controls">
+    <div class="install-switch" role="group" aria-label="Операционная система">
+      <button type="button" id="install-win" class="install-os active" aria-pressed="true">Windows</button>
+      <button type="button" id="install-linux" class="install-os" aria-pressed="false">Linux</button>
+    </div>
+    <a class="install-doc" href="/downloads/asc-remote-hub-agent-1.0.0.tar.gz" download>Скачать исходники агента ↗</a>
+  </div>
+  <div class="install-command-area">
+    <div class="install-command-text"><span class="install-prompt">&gt;</span><code id="install-command">Команда появится здесь</code></div>
+    <button type="button" class="primary" id="install-copy">Скопировать команду</button>
+  </div>
+  <p class="sub" id="install-platform-hint">Вставьте команду в PowerShell или терминал Windows.</p>
+  <p class="sub">Потребуются Node.js 18+, Python 3.10+ и tar. Для проверки без установки добавьте <code>--dry-run</code>. Установка без прав администратора.</p>
+  <div class="install-pair-steps">
+    <button type="button" class="outline" id="install-create-pair">Получить одноразовый код привязки</button>
+    <div id="install-pair-display" hidden>
+      <p class="sub">Вставьте код в терминал. Он действителен 10 минут; никому его не передавайте.</p>
+      <div class="install-pair-code"><code id="install-pair-code"></code><button type="button" class="outline" id="install-copy-pair">Скопировать код</button></div>
+    </div>
+
+    <p id="install-notice" class="notice" role="status"></p>
+  </div>
+</section>
+<section id="panel"><div class="titleline"><div><div class="eyebrow">Обзор</div><h1>Панель управления</h1><p id="email"></p></div><button class="outline" id="refresh">Обновить</button></div>
+<div class="stats"><div class="card"><div class="stat-number" id="total-calls">—</div><div class="sub">Всего вызовов</div></div>
+<div class="card"><div class="stat-number" id="total-errors">—</div><div class="sub">С ошибками</div><button id="goto-errors" class="text-link" type="button">Смотреть ошибки →</button></div>
+<div class="card"><div class="stat-number" id="device-count">—</div><div class="sub">Моих устройств</div></div>
+<div class="card"><div class="stat-number">∞</div><div class="sub">Лимит вызовов</div></div></div>
+<details class="card errors-collapsed" id="errors-section">
+<summary class="errors-main-summary">
+  <span class="errors-summary-title">Ошибки вызовов <span id="errors-header-count" class="errors-summary-count">—</span></span>
+  <span class="sub errors-caption-collapsed">Показать историю и подробности</span><span class="sub errors-caption-open">Свернуть историю</span>
+</summary>
+<div class="errors-detail-content">
+<div class="cardhead"><p class="sub">Вы можете просмотреть ошибки своих устройств и отфильтровать историю.</p>
+<button class="outline" id="errors-refresh" type="button">Обновить</button></div>
+<div class="error-filters">
+<label>Устройство<select id="errors-device"><option value="">Все устройства</option></select></label>
+<label>Инструмент<select id="errors-tool"><option value="">Все инструменты</option></select></label>
+<label>Период<select id="errors-days"><option value="1">24 часа</option><option value="7">7 дней</option><option value="30" selected>30 дней</option></select></label>
+</div>
+<div id="errors-list" class="errors-list" aria-live="polite"><p class="sub">Загружаем ошибки…</p></div>
+<div class="error-pagination"><button type="button" class="outline" id="errors-prev">← Назад</button><span id="errors-page-status" class="sub"></span><button type="button" class="outline" id="errors-next">Вперёд →</button></div>
+<p class="sub">История ошибок хранится 30 дней. При включённой полной трассировке можно открыть исходный запрос и ответ; данные других пользователей недоступны.</p>
+</div></details>
+<section class="card"><div class="cardhead"><div><h2>Подключённые устройства</h2><p class="sub">Каждый агент работает только под твоей учётной записью</p></div><button class="primary" id="pair">+ Добавить устройство</button></div>
+<div id="pairing" class="pairing" hidden><b>Код привязки (действует 10 минут)</b><div class="secret" id="pair-code"></div><p class="sub">Введи код в установщик агента на своём компьютере. Никому не отправляй код.</p></div>
+<div id="devices"></div></section>
+<div class="two"><section class="card"><h2>Использование инструментов</h2><p class="sub">Статистика только твоих вызовов, без ограничений</p><div id="usage"></div></section>
+<section class="card"><h2>Приватность и диагностика</h2><p>По умолчанию сохраняются счётчики и краткие причины ошибок. Полные тексты команд и файлов могут записываться только в отдельно включённом режиме диагностики.</p>
+<label class="toggle"><input type="checkbox" id="diagnostic"> Сохранять названия инструментов и статус вызовов 7 дней</label>
+<p class="sub">Другие пользователи не видят ваши устройства и данные. Администратор сервера несёт ответственность за безопасность инфраструктуры.</p>
+<div id="diagnostic-events" class="sub"></div></section></div>
+<section class="card"><h2>Подключить ChatGPT</h2><p>Добавь свой HTTPS MCP-сервер в ChatGPT, затем авторизуйся с помощью своего email и пароля. Для каждого пользователя OAuth выдаёт отдельные токены.</p>
+<div class="endpoint" id="endpoint"></div><p class="sub">Раздел Plugins → Add custom MCP server → укажи адрес выше → OAuth → авторизация.</p></section>
+<section class="card" id="admin-panel" hidden><h2>Администратор хаба — общая статистика</h2><p class="sub">Без списка пользователей, команд, файлов и содержимого ответов</p><div id="admin-stats"></div></section>
+<p id="panel-notice" class="notice"></p></section>
+</main><footer>ASC Remote Hub — ваши устройства под вашим контролем</footer><script src="/static/common.js" defer></script><script src="/static/dashboard.js" defer></script></body></html>

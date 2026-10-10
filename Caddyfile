@@ -1,0 +1,14 @@
+{$ASC_HUB_DOMAIN} {
+    encode gzip
+    reverse_proxy hub:8765 {
+        transport http {
+            read_timeout 145s
+            write_timeout 145s
+        }
+    }
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        X-Frame-Options DENY
+    }
+}

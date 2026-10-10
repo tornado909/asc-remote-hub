@@ -1,0 +1,89 @@
+[hidden]{display:none!important}
+:root{color-scheme:dark;--bg:#0e1119;--surface:#171c29;--border:#303a4a;--txt:#eff4ff;--muted:#9eabc4;--accent:#8bc5ff}*{box-sizing:border-box}body{background:radial-gradient(ellipse at 16% 0,#192943 0,#0e1119 45%);color:var(--txt);font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;margin:0;min-height:100vh}header{height:72px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 max(calc((100vw - 1100px)/2),24px)}.brand{font-weight:750;font-size:19px}.logo{color:var(--accent);margin-right:8px}.version{font-size:11px;font-weight:400;color:var(--muted);margin-left:15px}main{max-width:1100px;margin:0 auto;padding:44px 24px 80px}h1{font-size:clamp(35px,5vw,56px);letter-spacing:-.045em;line-height:1.08;margin:14px 0 25px}h2{font-size:20px;letter-spacing:-.025em;margin:0 0 8px}p{color:var(--muted)}.eyebrow{text-transform:uppercase;letter-spacing:.15em;color:var(--accent);font-size:11px;font-weight:800}.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:25px;margin-top:22px;box-shadow:0 8px 18px #0002}.auth{margin:0;max-width:410px;padding:30px}#welcome{display:grid;grid-template-columns:1.2fr 1fr;gap:54px;align-items:center;padding-top:65px}.intro p{font-size:18px;max-width:510px}form label:not(.check){display:block;margin:16px 0;font-weight:650}input[type=email],input[type=password]{width:100%;display:block;background:#0d1423;border:1px solid #354157;border-radius:9px;color:var(--txt);font:inherit;padding:12px;margin-top:6px}button{font:inherit;cursor:pointer}button.primary{background:#88c4ff;color:#0c192b;border:0;font-weight:760;padding:12px 18px;border-radius:10px}button:hover{filter:brightness(1.08)}button.outline{background:transparent;color:var(--txt);border:1px solid #456;border-radius:10px;padding:10px 16px}button.tab{width:50%;padding:13px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted)}button.tab.active{color:var(--accent);border-bottom-color:var(--accent)}.auth .primary{width:100%;margin:7px 0}.notice{color:#f7b7b7;min-height:1.2em}.titleline,.cardhead{display:flex;justify-content:space-between;align-items:center;gap:15px}.titleline h1{font-size:38px;margin:5px 0}.titleline p{margin:0}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}.stats .card{margin:0}.stat-number{font-size:40px;font-weight:850;letter-spacing:-.05em}.sub{color:var(--muted);font-size:13px}.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}.rowdevice{display:flex;align-items:center;gap:15px;padding:14px 0;border-bottom:1px solid var(--border)}.rowdevice:last-child{border:0}.device-body{flex:1;min-width:0}.device-body b{display:block}.device-body small{color:var(--muted)}.pill{display:inline-flex;align-items:center;font-size:12px;padding:4px 9px;border-radius:20px;background:#3a3130;color:#ffc0a9}.pill.online{background:#18372d;color:#a3f0b3}.secret,.endpoint{background:#0e1626;color:#b5daff;border:1px solid #33435b;padding:14px;border-radius:9px;font:12px/1.7 ui-monospace,Consolas,monospace;word-break:break-all;user-select:all}.pairing{margin-top:17px;padding:18px;background:#101e35;border-radius:10px}.pairing .secret{margin-top:9px}.toggle{display:flex;gap:11px;align-items:flex-start;color:var(--txt);margin:15px 0}.check{display:flex;gap:10px;align-items:center;margin:20px 0}.check input{width:20px;height:20px}.oauth{max-width:480px;margin:12vh auto;padding:32px;background:var(--surface);border:1px solid var(--border);border-radius:18px}.oauth h1{font-size:32px}.oauth button{width:100%;background:var(--accent);padding:12px 16px;border:0;border-radius:9px;font-weight:800}.oauth a{color:var(--accent)}#usage{max-height:320px;overflow:auto}.usage-row{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:8px 0;gap:9px;font-size:13px}.usage-row:last-child{border:0}.muted{color:var(--muted)}footer{text-align:center;padding:30px;color:var(--muted);font-size:12px;border-top:1px solid var(--border)}@media(max-width:850px){#welcome,.two{grid-template-columns:1fr;gap:20px}.stats{grid-template-columns:1fr 1fr}.auth{max-width:none}.cardhead{flex-wrap:wrap}}@media(max-width:480px){header{padding:0 15px}.version{display:none}main{padding:25px 15px 50px}.stats .card{padding:16px}.stat-number{font-size:32px}}
+
+/* Per-account tool error inspection */
+button.text-link{background:transparent;border:0;color:var(--accent);padding:7px 0 0;font-size:12px;text-align:left}
+button.text-link:hover{text-decoration:underline}
+.error-filters{display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:14px;margin:18px 0}
+.error-filters label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12px;font-weight:600}
+.error-filters select{width:100%;background:#0e1626;border:1px solid #354157;border-radius:9px;color:var(--txt);font:inherit;font-size:14px;padding:11px}
+.errors-list{display:flex;flex-direction:column;gap:10px}
+.error-row{border:1px solid #674044;background:#201b28;border-radius:11px;overflow:hidden}
+.error-row[open]{border-color:#a3676b}
+.error-summary{padding:13px 16px;cursor:pointer;list-style:none}
+.error-summary::-webkit-details-marker{display:none}
+.error-summary::after{content:"▾";float:right;color:#f2b6b6;font-size:16px}
+.error-row[open] .error-summary::after{content:"▴"}
+.error-row-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-right:22px}
+.error-date{color:#b5bdcf;font-size:12px;font-variant-numeric:tabular-nums}
+.error-tool{color:#fff;font-size:14px;overflow-wrap:anywhere}
+.error-device-name{background:#392b36;border:1px solid #65444a;border-radius:16px;padding:2px 9px;color:#ffe4dd;font-size:12px}
+.error-message{white-space:pre-wrap;overflow-wrap:anywhere;color:#ffbfc1;font-size:13px;margin-top:7px}
+.error-body{padding:15px 16px;border-top:1px solid #50333b;background:#181a26}
+.error-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;color:#b9c1d4;font:12px/1.5 ui-monospace,Consolas,monospace;word-break:break-all;margin-bottom:16px}
+.error-pagination{display:flex;align-items:center;justify-content:flex-end;gap:14px;padding:16px 0 0}
+.error-pagination button:disabled{opacity:.4;cursor:not-allowed}
+.error-trace-results{margin-top:12px}
+.trace-record{border:1px solid var(--border);border-radius:8px;margin:8px 0;overflow:hidden}
+.trace-record summary{cursor:pointer;padding:10px 12px;color:var(--accent);font:12px ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+.trace-payload{margin:0;padding:12px;background:#0e1421;color:#e5ecff;font:12px/1.55 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto}
+@media(max-width:700px){.error-filters{grid-template-columns:1fr}.error-meta{grid-template-columns:1fr}.error-pagination{justify-content:space-between}.error-row-top{gap:7px}}
+
+/* Quick one-command self-hosted agent installer */
+.quick-installer{margin:0 0 30px;border:1px solid #3c5c7c;background:linear-gradient(135deg,#171f2f,#121923 76%);padding:27px}
+.install-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.install-heading h2{font-size:23px;margin:5px 0 9px}
+.install-heading p{margin:0;max-width:740px}
+.install-brand{color:#afcbee;white-space:nowrap;font-weight:800;background:#192a42;border-radius:9px;padding:9px 13px;font-size:13px}
+.install-brand span{color:#8a9cb5;font-weight:400}
+.install-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-top:1px solid #344355;border-bottom:1px solid #344355;padding:16px 0;margin:19px 0}
+.install-steps span{display:flex;gap:10px;align-items:center;color:#afbed4;font-size:13px}
+.install-steps b{display:flex;align-items:center;justify-content:center;width:25px;height:25px;min-width:25px;border-radius:50%;background:#274a70;color:#9bd0ff;font-size:12px}
+.install-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:13px 0}
+.install-switch{display:inline-flex;background:#10182a;border:1px solid #34445f;border-radius:11px;padding:3px;gap:3px}
+.install-os{color:#adbad4;border:0;border-radius:8px;padding:9px 18px;background:transparent;font-weight:650}
+.install-os.active{background:#2b4362;color:#d0e9ff}
+.install-doc{color:#9ecdfb;font-size:12px;text-decoration:none}
+.install-doc:hover{text-decoration:underline}
+.install-command-area{display:flex;flex-direction:column;gap:13px;background:#0c121e;border:1px solid #354358;padding:17px;border-radius:12px}
+.install-command-text{display:flex;gap:12px;align-items:center;min-width:0}
+.install-prompt{color:#58cead;font-weight:850}
+.install-command-text code{font:600 13px/1.7 ui-monospace,Consolas,monospace;color:#e8f0fd;user-select:all;overflow-wrap:anywhere;white-space:pre-wrap}
+.install-command-area .primary{align-self:stretch}
+.install-pair-steps{margin-top:14px;border-top:1px solid #2b3445;padding-top:16px}
+.install-pair-steps .outline{margin-bottom:8px}
+.install-pair-code{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.install-pair-code code{flex:1;min-width:0;padding:12px;border-radius:8px;color:#b8dcff;background:#0e1626;border:1px solid #33435b;font:13px/1.5 ui-monospace,Consolas,monospace;word-break:break-all;user-select:all}
+.quick-installer .notice{margin:5px 0 0}
+@media(max-width:740px){
+  .quick-installer{padding:18px;margin-bottom:23px}
+  .install-heading{flex-direction:column}
+  .install-steps{grid-template-columns:1fr;gap:11px}
+  .install-brand{align-self:flex-start}
+  .install-command-area{padding:13px}
+  .install-command-text code{font-size:12px}
+}
+
+
+/* Compact error accordion: a long failure history must not consume the dashboard. */
+.errors-collapsed{padding:0;overflow:hidden}
+.errors-main-summary{cursor:pointer;list-style:none;padding:19px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.errors-main-summary::-webkit-details-marker{display:none}
+.errors-main-summary::after{content:'▾';color:var(--muted);margin-left:auto}
+.errors-collapsed[open] .errors-main-summary::after{content:'▴'}
+.errors-summary-title{font-size:19px;font-weight:750;letter-spacing:-.02em}
+.errors-summary-count{margin-left:8px;background:#2f3849;border:1px solid #4e5c72;border-radius:14px;padding:2px 9px;font-size:13px;font-weight:650;color:#dfecff}
+.errors-detail-content{border-top:1px solid var(--border);padding:16px 24px 22px}
+.errors-detail-content>.cardhead{align-items:center}
+/* Expanded error history scrolls, but its cards retain intrinsic height.
+   A flex column with default flex-shrink:1 previously squashed 15 cards. */
+.errors-list{display:block;max-height:480px;overflow-y:auto;scrollbar-gutter:stable;overscroll-behavior:contain}
+.errors-list>.error-row{display:block;min-height:0;margin:0 0 10px;flex:none}
+.errors-list>.error-row:last-child{margin-bottom:0}
+.errors-list>.error-row>.error-summary{display:block;min-height:76px;box-sizing:border-box}
+
+@media(max-width:650px){.errors-main-summary{padding:15px 17px}.errors-detail-content{padding:13px 15px}.errors-list{max-height:380px}}
+
+.errors-caption-open{display:none}
+.errors-collapsed[open] .errors-caption-open{display:inline}
+.errors-collapsed[open] .errors-caption-collapsed{display:none}
