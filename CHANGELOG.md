@@ -3,6 +3,7 @@
 ## 1.0.1 — 2026-10-10
 
 - Windows agent encrypts new device credentials via native user-bound DPAPI, without PowerShell subprocess piping.
+- The npx CLI now bundles the SHA-256 verified agent archive, so local installs do not require a second download.
 - Credential store is checked before redeeming a single-use pairing code, preventing the observed orphan registration on DPAPI failure.
 - The cross-platform `npx` installer resumes interrupted installations, preserves existing credentials and repairs background startup.
 - Improve transient HTTPS download error reporting and retry; existing agent tokens remain compatible.
