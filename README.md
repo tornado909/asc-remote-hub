@@ -10,7 +10,7 @@ No third-party desktop relay or vendor-specific MCP lock-in.
 
 [**Get started**](#quick-start) · [**Connect an MCP client**](#connect-an-mcp-client) · [**Security**](#security) · [**Русский**](README.ru.md)
 
-![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-396A96?style=flat-square) ![OAuth](https://img.shields.io/badge/OAuth-PKCE_%2B_DCR-396A96?style=flat-square) ![Platform](https://img.shields.io/badge/agents-Windows_%7C_Linux-396A96?style=flat-square) [![MIT](https://img.shields.io/badge/license-MIT-238636?style=flat-square)](LICENSE)
+**Streamable HTTP MCP** · **OAuth / PKCE / DCR** · **Windows + Linux** · **[MIT](LICENSE)**
 
 </div>
 
@@ -72,6 +72,8 @@ cp .env.example .env
 
 Set at least these values in `.env` (replace `hub.example.com` with your own host):
 
+The canonical Hub origin is set with `ASC_HUB_URL`; installers and OAuth metadata follow this value.
+
 ```dotenv
 ASC_HUB_URL=https://hub.example.com
 ASC_HUB_DOMAIN=hub.example.com
@@ -109,6 +111,11 @@ npx --yes https://hub.example.com/cli.tgz
 ```
 
 The CLI verifies the agent archive, asks for its access scope and pairing code, and configures autostart. Requires **Node.js 18+**, **Python 3.10+**, and `tar`. Node.js is only needed during installation.
+
+| Operating system | Command |
+| --- | --- |
+| Windows (PowerShell) | `npx --yes https://hub.example.com/cli.tgz` |
+| Linux (shell) | `npx --yes https://hub.example.com/cli.tgz` |
 
 To inspect prerequisites without changing your computer:
 
