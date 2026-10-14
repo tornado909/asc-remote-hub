@@ -6,7 +6,7 @@ Supported: latest release in the 1.x series.
 
 ## Threat model
 
-The public HTTPS hub, its owner and OS administrators are trusted. This is NOT end-to-end encryption against the hub operator. A server administrator can technically inspect traffic and database files. An authenticated user can access only devices belonging to that user; the OAuth authorization-code/PKCE flow binds tokens to users and resources.
+The public HTTPS hub, its owner and OS administrators are trusted. This is NOT end-to-end encryption against the hub operator. A server administrator can technically inspect traffic and database files. An authenticated user can access only devices belonging to that user; the OAuth authorization-code/PKCE flow binds tokens to users and resources. Dynamic OAuth client registration accepts secure HTTPS redirects and native loopback callbacks; authorization code issuance and token exchange require an exact registered redirect match. Application-specific tokens can be revoked per user.
 
 Device owners choose read-only, write/exec, or GUI permissions. Command execution is not sandboxed by allowed file roots: an executable can read anything permitted to its operating-system user. Use dedicated least-privilege accounts and keep sensitive devices in separate VMs if necessary.
 
@@ -18,7 +18,7 @@ Device owners choose read-only, write/exec, or GUI permissions. Command executio
 - Never upload configuration, OAuth keys, device credentials, SQLite databases, archives with private data or logs to GitHub.
 - Patch the host and Docker; use strong account passwords; add rate/bot protection for public registration.
 - Windows secrets are protected using user-scoped DPAPI; Linux secrets are stored under file mode 0600.
-- The SQLite error history retains limited diagnostic metadata; optional full JSON traces are for a single explicitly configured user and stored in private directories.
+- The SQLite error history retains limited diagnostic metadata. If `ASC_HUB_TRACE_PAYLOADS=1` is enabled, full traces are recorded for **every authenticated account**, separated by user/device in private directories. Configure permissions, retention and deletion accordingly.
 - Terminating tracing does not delete previous logs. Purge traces separately after verifying tests.
 
 ## Current limitations
