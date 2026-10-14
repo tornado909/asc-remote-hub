@@ -10,7 +10,7 @@
 
 [**Быстрый старт**](#быстрый-старт) · [**Подключение MCP**](#подключение-mcp-клиентов) · [**Безопасность**](#безопасность) · [**English**](README.md)
 
-![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-396A96?style=flat-square) ![OAuth](https://img.shields.io/badge/OAuth-PKCE_%2B_DCR-396A96?style=flat-square) ![Платформы](https://img.shields.io/badge/агенты-Windows_%7C_Linux-396A96?style=flat-square) [![MIT](https://img.shields.io/badge/license-MIT-238636?style=flat-square)](LICENSE)
+**Streamable HTTP MCP** · **OAuth / PKCE / DCR** · **Windows + Linux** · **[MIT](LICENSE)**
 
 </div>
 
@@ -72,6 +72,8 @@ cp .env.example .env
 
 В `.env` укажите свой домен:
 
+Канонический публичный адрес хаба задаётся через `ASC_HUB_URL`.
+
 ```dotenv
 ASC_HUB_URL=https://hub.example.com
 ASC_HUB_DOMAIN=hub.example.com
@@ -109,6 +111,12 @@ npx --yes https://hub.example.com/cli.tgz
 ```
 
 Установщик проверит контрольную сумму агента, попросит код привязки и разрешения и настроит автозапуск. Требуются **Node.js 18+**, **Python 3.10+** и `tar`. Node.js для постоянной работы агента не нужен.
+
+На Windows PowerShell:
+
+```powershell
+npx --yes https://hub.example.com/cli.tgz
+```
 
 Проверка без установки:
 
