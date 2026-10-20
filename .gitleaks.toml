@@ -1,0 +1,15 @@
+title = "ASC Remote Hub leak scanning"
+
+[extend]
+useDefault = true
+
+# Only synthetic, hard-coded test fixtures. Other findings remain errors.
+[[allowlists]]
+description = "Two synthetic strings used by existing unit tests"
+condition = "AND"
+target = "match"
+paths = ['''^tests/(test_agent|test_hub)\.py$''']
+regexes = [
+  '''MY_TEST_SECRET_01234''',
+  '''My-Strong-Pwd-2026''',
+]
