@@ -113,7 +113,7 @@ class ErrorHistoryTests(unittest.TestCase):
             VALUES(?,?,?,?,?,?,?,?,?,?)""",
             (event_id,self.user["id"],time.time(),self.did,"read_file",
              "AccessDenied","AccessDenied: private metadata",traceid,None,"agent"))
-        self.hub.trace=TrafficTrace(folder,enabled=True,account_id=self.user["id"])
+        self.hub.trace=TrafficTrace(folder,enabled=True)
         for direction in ("chatgpt_to_hub","hub_to_chatgpt"):
             self.hub.trace.record(direction=direction,route="/mcp",user_id=self.user["id"],
                device_id=self.did,request_id=traceid,payload={"marker":"Private original"})
@@ -152,7 +152,7 @@ class ErrorHistoryTests(unittest.TestCase):
             VALUES(?,?,?,?,?,?,?,?,?)""",
             (other_event,self.other["id"],time.time(),self.foreign,
              "machine_info","OtherError","sensitive-other-account","request-other","agent"))
-        self.hub.trace=TrafficTrace(Path(self.tmp.name),enabled=True,account_id=self.user["id"])
+        self.hub.trace=TrafficTrace(Path(self.tmp.name),enabled=True)
         self.assertFalse(self.hub.trace.path_for(self.user["id"],self.did).exists())
         with self.assertRaises(Failure) as err:
             self.hub.error_trace(self.user["id"],other_event)

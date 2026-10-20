@@ -10,7 +10,48 @@ $('userbar').addEventListener('click',async e=>{
     location.replace('/');
   }catch(error){notice('panel-notice',error.message)}
 });
-function deviceEntry(d){const node=document.createElement('div');node.className='rowdevice';const icon=document.createElement('div');icon.textContent='▣';icon.style.fontSize='28px';icon.style.color='#8bc5ff';const info=document.createElement('div');info.className='device-body';const title=document.createElement('b');title.textContent=d.name;const subtitle=document.createElement('small');subtitle.textContent=d.id+' · '+d.platform;info.append(title,subtitle);const status=document.createElement('span');status.className='pill'+(d.online?' online':'');status.textContent=d.online?'В сети':'Не в сети';const revoke=document.createElement('button');revoke.textContent='Отвязать';revoke.className='outline';revoke.addEventListener('click',async()=>{if(!confirm('Отключить устройство '+d.name+'?'))return;try{await api('/api/devices/revoke',{method:'POST',body:JSON.stringify({device_id:d.id})});await refreshPanel()}catch(e){notice('panel-notice',e.message)}});node.append(icon,info,status,revoke);return node;}
+async function refreshOAuthConnections(){
+  const target=$('oauth-connections');
+  try {
+    const data=await api('/api/oauth/connections');
+    target.replaceChildren();
+    if(!data.connections.length){
+      const msg=document.createElement('p');msg.className='sub';
+      msg.textContent='Авторизованных MCP-приложений пока нет.';
+      target.append(msg);return;
+    }
+    for(const client of data.connections){
+      const row=document.createElement('div');row.className='rowdevice';
+      const info=document.createElement('div');info.className='device-body';
+      const name=document.createElement('b');
+      name.textContent=client.client_name||'MCP-приложение';
+      const detail=document.createElement('small');
+      detail.textContent='OAuth callback: '+client.callback_hosts.join(', ');
+      info.append(name,detail);
+      const revoke=document.createElement('button');revoke.className='outline';
+      revoke.type='button';revoke.textContent='Отозвать доступ';
+      revoke.addEventListener('click',async()=>{
+        if(!confirm('Отозвать доступ приложения «'+name.textContent+'»?'))return;
+        revoke.disabled=true;
+        try{
+          await api('/api/oauth/connections/revoke',{
+            method:'POST',body:JSON.stringify({client_id:client.client_id})
+          });
+          await refreshOAuthConnections();
+          notice('panel-notice','Доступ MCP-приложения отозван.');
+        }catch(err){revoke.disabled=false;notice('panel-notice',err.message)}
+      });
+      row.append(info,revoke);target.append(row);
+    }
+  }catch(error){target.replaceChildren();
+    const msg=document.createElement('p');msg.className='notice';
+    msg.textContent='Ошибка получения MCP-подключений: '+error.message;
+    target.append(msg);
+  }
+}
+$('oauth-refresh').addEventListener('click',refreshOAuthConnections);
+
+function deviceEntry(d){const node=document.createElement('div');node.className='rowdevice';const icon=document.createElement('div');icon.textContent='▣';icon.style.fontSize='28px';icon.style.color='#8bc5ff';const info=document.createElement('div');info.className='device-body';const title=document.createElement('b');title.textContent=d.name;const subtitle=document.createElement('small');subtitle.textContent=d.id+' · '+d.platform;info.append(title,subtitle);const status=document.createElement('span');status.className='pill'+(d.online?' online':'');status.textContent=d.online?'В сети':'Не в сети';const revoke=document.createElement('button');revoke.textContent='Отвязать';revoke.className='outline';revoke.addEventListener('click',async()=>{if(!confirm('Отозвать доступ устройства «'+d.name+'» на сервере? Для очистки привязки на самом компьютере затем выполните команду unpair из раздела ниже.'))return;try{await api('/api/devices/revoke',{method:'POST',body:JSON.stringify({device_id:d.id})});await refreshPanel()}catch(e){notice('panel-notice',e.message)}});node.append(icon,info,status,revoke);return node;}
 async function refreshPanel(){try{
  const [dv,usage]=await Promise.all([api('/api/devices'),api('/api/usage')]);text('total-calls',usage.total.toLocaleString('ru-RU'));text('total-errors',usage.errors.toLocaleString('ru-RU'));text('errors-header-count',usage.errors.toLocaleString('ru-RU'));text('device-count',dv.devices.length);
  const elements=$('devices');elements.replaceChildren();if(!dv.devices.length){const p=document.createElement('p');p.textContent='Устройств пока нет. Нажми «Добавить устройство», чтобы получить одноразовый код привязки.';elements.append(p);}dv.devices.forEach(d=>elements.append(deviceEntry(d)));
@@ -18,7 +59,7 @@ async function refreshPanel(){try{
  errorFilterOptions('errors-device',dv.devices.map(d=>({value:d.id,label:d.name})),'Все устройства');
  const errorTools=[...new Set(usage.daily.filter(x=>x.errors>0).map(x=>x.tool))].sort();
  errorFilterOptions('errors-tool',errorTools.map(x=>({value:x,label:x})),'Все инструменты');
- await refreshErrors();
+ await Promise.all([refreshErrors(),refreshOAuthConnections()]);
  }catch(err){notice('panel-notice',err.message)}}
 
 const ERROR_PAGE_SIZE=15;
@@ -145,6 +186,7 @@ async function reload(){
     logout.id='logout';logout.className='outline';logout.textContent='Выйти';
     $('userbar').append(logout);
     text('endpoint',location.origin+'/mcp');
+    text('mcp-example','"asc-remote-hub": {"url": "'+location.origin+'/mcp"}');
     $('admin-panel').hidden=!me.is_admin;
     if(me.is_admin){
       const data=await api('/api/admin/summary');

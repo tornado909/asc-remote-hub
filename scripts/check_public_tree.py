@@ -48,7 +48,8 @@ PRIVATE_IPV4 = tuple(
 URL_RE = re.compile(r"https?://([A-Za-z0-9_.:-]+)", re.I)
 PUBLIC_HOSTS = {"github.com", "api.github.com", "raw.githubusercontent.com",
                 "chatgpt.com", "openai.com", "python.org", "www.python.org",
-                "nodejs.org", "npmjs.org", "registry.npmjs.org", "learn.microsoft.com"}
+                "nodejs.org", "npmjs.org", "registry.npmjs.org", "learn.microsoft.com",
+                "cursor.com", "www.cursor.com"}
 EXAMPLE_SUFFIXES = ("example.com", "example.org", "example.net", "example.test",
                     "example.invalid", ".example", ".test", ".invalid")
 
@@ -81,6 +82,9 @@ def private_literal_findings(raw: str, extra_blocklist: tuple[str, ...] = ()) ->
             findings.add("non-allowlisted network origin")
     for matched in HOST_RE.finditer(normalized):
         hostname = matched.group().lower()
+        # GUI geometry attributes and instance fields are not domain names.
+        if hostname in {"self.home", "rect.top", "rect.left", "rect.right", "rect.bottom"}:
+            continue
         tld = hostname.rsplit(".", 1)[-1]
         if tld not in KNOWN_TLDS and tld not in INTERNAL_TLDS:
             continue

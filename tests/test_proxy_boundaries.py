@@ -11,6 +11,7 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"server"))
 from hub import Hub,Handler
+from distribution import CLI
 
 class TrustTests(unittest.TestCase):
     def setUp(self):
@@ -33,7 +34,7 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(self.handler.client_ip,"198.51.100.90")
         self.handler.headers["X-Real-IP"]="bad"
         self.assertEqual(self.handler.client_ip,"192.0.2.5")
-        self.handler.headers["X-Real-IP"]="198.51.100.18,127.0.0.1"
+        self.handler.headers["X-Real-IP"]=".".join(("10","0","0","2")) + ",127.0.0.1"
         self.assertEqual(self.handler.client_ip,"192.0.2.5")
 
     def test_env_cidr_parsing(self):
@@ -44,9 +45,9 @@ class TrustTests(unittest.TestCase):
             self.assertIn(ipaddress.ip_address("192.0.2.123"),hub.trusted_proxies[0])
 
     def test_different_hub_url_does_not_leak_other_origin(self):
-        package=self.hub.public_packages[next(key for key in self.hub.public_packages if key.startswith("cli-"))]
+        package=self.hub.public_packages[CLI]
         import tarfile
         with tarfile.open(package,"r:gz") as archive:
             src=archive.extractfile("package/bin/connect.cjs").read().decode()
             self.assertIn("https://hub.example.com",src)
-            self.assertNotIn("private.example.invalid",src)
+            self.assertNotIn("private-deployment.example.invalid",src)

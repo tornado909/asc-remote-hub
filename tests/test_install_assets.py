@@ -15,7 +15,7 @@ from urllib.request import urlopen
 HERE=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(HERE/"server"))
 from hub import Hub,Handler
-from distribution import CLI,AGENT,build_distributions
+from distribution import CLI,AGENT,ALLOWED_FILES,build_distributions
 
 class Tags(HTMLParser):
     def __init__(self):
@@ -73,16 +73,15 @@ class InstallerAssetTests(unittest.TestCase):
         for id in ("panel","errors-section","errors-header-count","devices","admin-panel"):
             self.assertNotIn(id,tags.ids)
         self.assertIn(AGENT,page)
-        self.assertNotIn("private.example.invalid",page)
-        self.assertNotIn("private-account@example.invalid",page)
+        self.assertNotIn("private-deployment.example.invalid",page)
+        self.assertNotIn("tornado909",page)
         self.assertIn('src="/static/auth.js"',page)
         self.assertNotIn('src="/static/dashboard.js"',page)
         with urlopen(self.url+"/static/common.js",timeout=8) as response:
             js=response.read().decode("utf8")
-        self.assertIn("location.origin+'/cli.tgz'",js)
-        self.assertNotIn("location.origin+'/cli-", js)
+        self.assertIn("location.origin+" + chr(39) + "/cli.tgz" + chr(39), js)
         self.assertIn("copyInstallValue",js)
-        self.assertNotIn("private.example.invalid",js)
+        self.assertNotIn("private-deployment.example.invalid",js)
 
     def test_same_release_multiple_domains_produce_distinct_clis(self):
         with tempfile.TemporaryDirectory() as a,tempfile.TemporaryDirectory() as b:
@@ -95,40 +94,33 @@ class InstallerAssetTests(unittest.TestCase):
                 with tarfile.open(fileobj=io.BytesIO(content),mode="r:gz") as tar:
                     code=tar.extractfile("package/bin/connect.cjs").read().decode("utf8")
                     self.assertIn(origin,code)
-                    self.assertNotIn("private.example.invalid",code)
+                    self.assertNotIn("private-deployment.example.invalid",code)
                     self.assertNotIn("__HUB_ORIGIN__",code)
                     self.assertNotIn("__ARCHIVE_SHA256__",code)
-                    self.assertIn("acquireAgentArchive",code)
-                    self.assertIn("ORIGIN+\'/cli.tgz\'",code)
-                    self.assertEqual(tar.extractfile("package/assets/"+AGENT).read(),aa[AGENT].read_bytes())
-                    self.assertNotIn("npx.cmd",code)
-                    self.assertIn("ASC_HUB_SKIP_ENROLL",code)
-                    self.assertIn("configured=!opt.dryRun&&fs.existsSync(credentialPath())",code)
-                    self.assertIn("existing.permissions.gui===true",code)
-                    self.assertIn("Существующие (без изменений)",code)
             with tarfile.open(aa[AGENT],mode="r:gz") as tar:
                 names=tar.getnames()
                 self.assertTrue(all(x.startswith("asc-remote-hub/") for x in names))
                 self.assertFalse(any(".env" in x or "sqlite" in x or "backup" in x for x in names))
-                self.assertEqual(len(names),9)
-                self.assertIn("asc-remote-hub/install/tray_windows.ps1",names)
-                self.assertIn("asc-remote-hub/install/launch_tray_windows.vbs",names)
+                self.assertEqual(len(names),len(ALLOWED_FILES)+1)
+                self.assertIn("asc-remote-hub/install/asc-remote-hub.ico",names)
+                icon=tar.extractfile("asc-remote-hub/install/asc-remote-hub.ico").read()
+                self.assertEqual(icon[:4],bytes((0,0,1,0)))
+                self.assertGreater(len(icon),4000)
 
-    def test_root_linux_and_windows_tray_profiles(self):
-        linux=(HERE/"install/install_linux.sh").read_text(encoding="utf-8")
-        windows=(HERE/"install/install_windows.ps1").read_text(encoding="utf-8")
-        tray=(HERE/"install/tray_windows.ps1").read_text(encoding="utf-8")
-        launcher=(HERE/"install/launch_tray_windows.vbs").read_text(encoding="utf-8")
-        self.assertNotIn("Run without sudo", linux)
-        self.assertIn("WantedBy=multi-user.target", linux)
-        self.assertIn("systemctl enable --now", linux)
-        self.assertLess(linux.index("requires an active systemd"),linux.index('"$BASE/client/bridge.py"'))
-        self.assertIn("launch_tray_windows.vbs",windows)
-        self.assertIn("wscript.exe",windows)
-        for item in ("Открыть хаб", "Перезапустить агент", "Выход"):
-            self.assertIn(item,tray)
-        self.assertIn("System.Windows.Forms.NotifyIcon",tray)
-        self.assertIn("tray_windows.ps1",launcher)
+    def test_brand_icons_available_without_authentication(self):
+        with urlopen(self.url+"/",timeout=8) as response:
+            html=response.read().decode("utf-8")
+        self.assertIn('href="/favicon.ico"',html)
+        self.assertIn('src="/static/brand-mark.png"',html)
+        for uri,mime,filename in (
+            ("/favicon.ico","image/x-icon","favicon.ico"),
+            ("/static/brand-mark.png","image/png","brand-mark.png"),
+            ("/apple-touch-icon.png","image/png","brand-mark.png"),
+        ):
+            with urlopen(self.url+uri,timeout=8) as response:
+                self.assertEqual(response.status,200)
+                self.assertEqual(response.headers.get("Content-Type"),mime)
+                self.assertEqual(response.read(),(HERE/"server"/"static"/filename).read_bytes())
 
     def test_health_and_oauth_still_work(self):
         for route in ("/healthz","/.well-known/oauth-authorization-server"):

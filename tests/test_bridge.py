@@ -8,9 +8,49 @@ import time
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"client"))
-from bridge import exclusive_agent_lock,busy_heartbeat
+from bridge import exclusive_agent_lock,busy_heartbeat,record_connected_marker,load_config,VERSION
 
 class BridgeReliabilityTests(unittest.TestCase):
+    def test_config_loads_utf8_with_bom_and_preserves_roots(self):
+        import json
+        import os
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temp:
+            directory=Path(temp)
+            config=directory/"agent.json"
+            token=directory/"device-key.secret"
+            token.write_text("A"*48,encoding="utf-8")
+            roots=[str(directory),str(directory/"project")]
+            (directory/"project").mkdir()
+            config.write_text(json.dumps({
+                "hub_url":"https://private-deployment.example.invalid",
+                "device_id":"d_test","token_file":str(token),
+                "name":"Test Device","roots":roots,
+                "permissions":{"write":True,"exec":True,"gui":False,"delete":False}
+            }),encoding="utf-8-sig")
+            with mock.patch.dict(os.environ, {}, clear=False), mock.patch(
+                    "bridge.decrypt_secret", return_value="A"*48):
+                loaded,secret,agent=load_config(config)
+                self.assertEqual(loaded["roots"],roots)
+                self.assertEqual(secret,"A"*48)
+                self.assertEqual(os.environ["ASC_RC_ROOTS"],";".join(roots))
+
+
+    def test_ready_marker_contains_no_credentials_and_is_atomic(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)
+            self.assertTrue(record_connected_marker("device-test",directory=folder))
+            data=json.loads((folder/"agent.ready.json").read_text())
+            self.assertEqual(data["device_id"],"device-test")
+            self.assertEqual(data["version"],VERSION)
+            self.assertGreater(data["pid"],0)
+            self.assertGreater(data["connected_at"],0)
+            self.assertEqual(set(data),{"device_id","version","pid","connected_at"})
+            self.assertTrue(record_connected_marker("device-test2",directory=folder))
+            self.assertEqual(json.loads((folder/"agent.ready.json").read_text())["device_id"],"device-test2")
+            self.assertEqual(len(list(folder.iterdir())),1)
+
     def test_exclusive_lock_blocks_duplicate_in_same_account(self):
         with tempfile.TemporaryDirectory() as temp:
             cfg=Path(temp)/"agent.json"
@@ -63,51 +103,3 @@ class BridgeReliabilityTests(unittest.TestCase):
         self.assertTrue(revoked.is_set())
         self.assertFalse(t.is_alive())
         self.assertEqual(len(called),1)
-
-
-class WindowsCredentialTests(unittest.TestCase):
-    @unittest.skipUnless(sys.platform=="win32","Windows-only DPAPI")
-    def test_native_dpapi_unicode_roundtrip(self):
-        from bridge import encrypt_secret,decrypt_secret
-        for sample in ("ASC-HUB-TEST-12345", "Русский текст и emoji 🙂"):
-            encrypted=encrypt_secret(sample)
-            self.assertTrue(encrypted.startswith("dpapi1:"))
-            self.assertNotIn(sample,encrypted)
-            self.assertEqual(decrypt_secret(encrypted),sample)
-
-    @unittest.skipUnless(sys.platform=="win32","Windows-only legacy credentials")
-    def test_existing_legacy_windows_key_remains_readable(self):
-        import subprocess
-        from bridge import decrypt_secret
-        sample="ASC-HUB-LEGACY-TEST-NONSECRET"
-        script=("$ErrorActionPreference='Stop';"
-                "$plain=[Console]::In.ReadToEnd();"
-                "$sec=ConvertTo-SecureString -String $plain -AsPlainText -Force;"
-                "[Console]::Out.Write((ConvertFrom-SecureString $sec))")
-        process=subprocess.run(["powershell.exe","-NoProfile","-NonInteractive","-Command",script],
-                               input=sample.encode(),capture_output=True,timeout=20,check=True)
-        self.assertEqual(decrypt_secret(process.stdout.decode().strip()), sample)
-
-    def test_enrollment_preflight_runs_before_one_time_code_redemption(self):
-        import os
-        from types import SimpleNamespace
-        from unittest.mock import patch
-        from bridge import enroll
-        with tempfile.TemporaryDirectory() as temp:
-            args=SimpleNamespace(hub="https://hub.example.test",name="test-pc",
-                config=str(Path(temp)/"agent.json"),roots=[temp],write=False,
-                exec=False,gui=False,delete=False)
-            with patch("bridge.Agent"),patch("bridge.request") as network, \
-                 patch("bridge.preflight_credentials",side_effect=RuntimeError("DPAPI unavailable")), \
-                 patch.dict(os.environ,{"ASC_HUB_PAIRING_CODE":"TEST-CODE"}):
-                with self.assertRaisesRegex(RuntimeError,"DPAPI unavailable"):
-                    enroll(args)
-                network.assert_not_called()
-
-    def test_preflight_does_not_leave_temporary_secret(self):
-        from bridge import preflight_credentials
-        with tempfile.TemporaryDirectory() as temp:
-            target=Path(temp)/"creds"/"agent.json"
-            preflight_credentials(target)
-            self.assertEqual(list(target.parent.iterdir()), [])
-

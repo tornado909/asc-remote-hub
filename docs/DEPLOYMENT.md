@@ -16,6 +16,8 @@ Clone https://github.com/tornado909/asc-remote-hub and copy .env.example to .env
     PGID=1000
     ASC_HUB_TRACE_PAYLOADS=0
 
+Full trace: ASC_HUB_TRACE_PAYLOADS=1 records MCP/agent payloads for every authenticated user, in separate user/device directories. Disable with 0. There is no trace-account selector.
+
 Create a private data folder (chmod 700, owned by PUID:PGID), then run:
 
     docker compose up -d --build hub
@@ -34,15 +36,15 @@ From an interactive terminal:
 
 Other users may register freely through the site. The application admin UI shows aggregate stats only, not other users' devices.
 
-## Connect devices and MCP clients
+## Connect devices and ChatGPT
 
 From the site, copy the npx installation command generated for its domain. Required on the client: Node.js 18+, Python 3.10+ and tar. A one-time pairing code is provided after login; the installer asks for the code and chosen permissions. On Windows, a user session is needed for GUI operation.
 
-Add the remote Streamable HTTP MCP endpoint to ChatGPT, Cursor, OpenMausBot, or any compatible client:
+Add ChatGPT MCP endpoint:
 
     https://hub.example.com/mcp
 
-Choose OAuth and log into your own Hub account. The Hub uses authorization code + PKCE S256 and supports dynamic client registration with HTTPS callbacks or native-app loopback HTTP callbacks (with an explicit port). The client must support these MCP/OAuth mechanisms. A per-user application list in the dashboard lets you revoke individual clients without removing devices. The Hub server may run 1.2.0 while agents and the installer remain 1.1.0; re-enrollment is not required. Client-specific plan limits are independent of the Hub.
+Choose OAuth and log into your hub account. ChatGPT plan features/limits are separate from the hub.
 
 ## Updates
 

@@ -71,20 +71,18 @@ class LegacySplitTests(unittest.TestCase):
         self.assertEqual(read(b),raw[3:5])
         self.assertEqual(read(hub),raw[5:6]+raw[7:9])
         self.assertEqual(read(other),raw[6:7])
-        if os.name != "nt":  # Windows permissions are enforced through NTFS ACLs.
-            for p in (a,b,hub,other):
-                self.assertEqual(p.stat().st_mode & 0o777,0o600)
-                ancestor=p.parent
-                while ancestor!=self.root:
-                    self.assertEqual(ancestor.stat().st_mode & 0o777,0o700)
-                    ancestor=ancestor.parent
+        for p in (a,b,hub,other):
+            self.assertEqual(p.stat().st_mode & 0o777,0o600)
+            ancestor=p.parent
+            while ancestor!=self.root:
+                self.assertEqual(ancestor.stat().st_mode & 0o777,0o700)
+                ancestor=ancestor.parent
         self.assertFalse((self.root/"traffic.jsonl").exists())
         self.assertFalse((self.root/"traffic.jsonl.1").exists())
         backup=Path(result["legacy_backup"])
         self.assertEqual((backup/"traffic.jsonl.1").read_bytes(),b"".join(raw[:3]))
         self.assertEqual((backup/"traffic.jsonl").read_bytes(),b"".join(raw[3:]))
-        if os.name != "nt":
-            self.assertEqual(backup.stat().st_mode & 0o777,0o700)
+        self.assertEqual(backup.stat().st_mode & 0o777,0o700)
         with redirect_stdout(io.StringIO()):
             result2=split_legacy(self.data)
         self.assertFalse(result2["migrated"])

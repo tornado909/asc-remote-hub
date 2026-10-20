@@ -24,13 +24,14 @@ import sqlite3
 import threading
 import time
 from urllib.parse import parse_qs, quote, urlencode, urlparse
+import ipaddress
 import uuid
 import getpass
 import ipaddress
 from traffic_trace import TrafficTrace
 from distribution import build_distributions, CLI, AGENT
 
-VERSION = "1.0.3"
+VERSION = "1.2.3"
 PROTOCOLS = {"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
 MAX_REQUEST = 9 * 1024 * 1024
 MAX_JSON = 9 * 1024 * 1024
@@ -50,9 +51,44 @@ CORS_ALLOWED_HEADERS = frozenset({
     "authorization", "content-type", "mcp-protocol-version",
     "mcp-session-id", "accept", "last-event-id",
 })
-CLIENT_REDIRECT_RE = re.compile(
-    r"^https://chatgpt\.com/(?:connector_platform_oauth_redirect|connector/oauth/[A-Za-z0-9_-]+)$"
-)
+def valid_oauth_redirect(uri: str) -> bool:
+    """Secure exact-match redirect registration for any OAuth public client.
+    Web apps use HTTPS. Native apps may use HTTP ONLY on loopback with an
+    explicit nonzero port. Never use string-prefix matching for hostnames.
+    """
+    if (not isinstance(uri,str) or not 1<=len(uri)<=2048 or
+            any(ord(char)<33 or ord(char)==127 for char in uri) or
+            "\\" in uri):
+        return False
+    try:
+        u=urlparse(uri)
+        host=u.hostname
+        port=u.port  # validates malformed/out-of-range port
+        if (not host or not u.netloc or u.fragment or
+                u.username is not None or u.password is not None or
+                (u.path and (not u.path.startswith("/") or u.path.startswith("//")))):
+            return False
+        # Do not accept percent-encoded hostnames, ambiguous authorities or
+        # unbracketed IPv6 literals. Full redirect URI is stored and matched.
+        if "%" in u.netloc or "@" in u.netloc:
+            return False
+        if u.scheme=="https":
+            if not re.fullmatch(r"[A-Za-z0-9.\-]+",host) and ":" not in host:
+                return False
+            return True
+        if u.scheme=="http":
+            if port is None or port<1:
+                return False
+            if host.lower()=="localhost":
+                return True
+            try:
+                return ipaddress.ip_address(host).is_loopback
+            except ValueError:
+                return False
+        return False
+    except (ValueError,TypeError):
+        return False
+
 EMAIL_RE = re.compile(r"^[^\s@]{1,70}@[^\s@]{1,180}\.[^\s@]{2,40}$")
 PKCE_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
@@ -116,6 +152,15 @@ class Hub:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.dbfile = self.data_dir / "hub.sqlite3"
         self.db_lock = threading.RLock()
+        # One live SQLite connection prevents expensive open/close WAL
+        # checkpoint cycles on slow virtual disks. All access is under db_lock.
+        self._database = sqlite3.connect(
+            str(self.dbfile),timeout=20,isolation_level="DEFERRED",
+            check_same_thread=False)
+        self._database.row_factory=sqlite3.Row
+        self._database.execute("PRAGMA foreign_keys=ON")
+        self._database.execute("PRAGMA journal_mode=WAL")
+        self._database.execute("PRAGMA synchronous=FULL")
         self.state_lock = threading.Condition(threading.RLock())
         self.queued: dict[str, deque] = defaultdict(deque)
         self.pending: dict[str, dict] = {}
@@ -129,31 +174,31 @@ class Hub:
         self.public_packages = build_distributions(
             Path(__file__).resolve().parent.parent, self.data_dir, self.base)
         trace_enabled = os.environ.get("ASC_HUB_TRACE_PAYLOADS", "0").strip().lower() in ("1", "true", "yes", "on")
-        trace_email = os.environ.get("ASC_HUB_TRACE_ACCOUNT", "").strip().lower()
-        trace_owner = None
-        if trace_enabled:
-            if not trace_email:
-                raise ValueError("ASC_HUB_TRACE_ACCOUNT must be set when tracing is enabled")
-            trace_owner = self.row("SELECT id FROM users WHERE email=?", (trace_email,))
-            if not trace_owner:
-                raise ValueError("Tracing account must already exist")
+        # A single opt-in switch enables complete MCP/agent traffic traces for
+        # EVERY authenticated tenant. Files remain isolated by user and device.
+        # No owner email or account lookup is necessary at startup.
         self.trace = TrafficTrace(
             self.data_dir, enabled=trace_enabled,
-            account_id=trace_owner["id"] if trace_owner else "",
             max_bytes=int(os.environ.get("ASC_HUB_TRACE_MAX_MB", "64")) * 1024 * 1024,
             backups=int(os.environ.get("ASC_HUB_TRACE_BACKUPS", "4")),
         )
 
     @contextmanager
-    def db(self):
-        db = sqlite3.connect(str(self.dbfile), timeout=20, isolation_level="DEFERRED", check_same_thread=False)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA foreign_keys=ON")
-        try:
-            with db:
-                yield db
-        finally:
-            db.close()
+    def db(self, *, telemetry: bool = False):
+        # The RLock also protects direct calls by tests/maintenance code.
+        # SQLite's connection is not used from parallel threads concurrently.
+        with self.db_lock:
+            db=self._database
+            # Last telemetry writes may be lost on power failure, while account
+            # and authorization data use FULL synchronous durability.
+            if telemetry:
+                db.execute("PRAGMA synchronous=NORMAL")
+            try:
+                with db:
+                    yield db
+            finally:
+                if telemetry:
+                    db.execute("PRAGMA synchronous=FULL")
 
     def _init_db(self):
         with self.db_lock, self.db() as db:
@@ -176,7 +221,8 @@ class Hub:
                   hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                   expires REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS oauth_clients (
-                  id TEXT PRIMARY KEY, redirects TEXT NOT NULL);
+                  id TEXT PRIMARY KEY, redirects TEXT NOT NULL,
+                  client_name TEXT NOT NULL DEFAULT 'MCP application');
                 CREATE TABLE IF NOT EXISTS oauth_requests (
                   id TEXT PRIMARY KEY, client_id TEXT NOT NULL, redirect TEXT NOT NULL,
                   challenge TEXT NOT NULL, resource TEXT NOT NULL, state TEXT NOT NULL,
@@ -214,7 +260,22 @@ class Hub:
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_errors_owner_request
                   ON error_events(user_id,request_id)
                   WHERE request_id IS NOT NULL;
+                CREATE TABLE IF NOT EXISTS performance_events (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                  device_id TEXT NOT NULL, tool TEXT NOT NULL,
+                  created REAL NOT NULL,
+                  queue_ms REAL, agent_ms REAL, relay_ms REAL,
+                  total_ms REAL NOT NULL, status TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS idx_perf_owner_recent
+                  ON performance_events(user_id,created DESC);
+
             """)
+        # Existing ChatGPT connections must survive a migration in place.
+        with self.db_lock, self.db() as db:
+            columns={row["name"] for row in db.execute("PRAGMA table_info(oauth_clients)")}
+            if "client_name" not in columns:
+                db.execute("ALTER TABLE oauth_clients ADD COLUMN client_name TEXT NOT NULL DEFAULT 'MCP application'")
         try:
             os.chmod(self.dbfile, 0o600)
         except OSError:
@@ -229,8 +290,8 @@ class Hub:
         with self.db_lock, self.db() as db:
             return [dict(row) for row in db.execute(sql, params).fetchall()]
 
-    def execute(self, sql: str, params=()):
-        with self.db_lock, self.db() as db:
+    def execute(self, sql: str, params=(), *, telemetry: bool = False):
+        with self.db_lock, self.db(telemetry=telemetry) as db:
             return db.execute(sql, params).rowcount
 
     def cleanup_expired(self):
@@ -243,6 +304,7 @@ class Hub:
                 db.execute(f"DELETE FROM {table} WHERE {column}<?",(cutoff,))
             db.execute("DELETE FROM diagnostics WHERE created<?", (cutoff-7*86400,))
             db.execute("DELETE FROM error_events WHERE created<?", (cutoff-30*86400,))
+            db.execute("DELETE FROM performance_events WHERE created<?", (cutoff-7*86400,))
 
     def throttle_ip(self, category: str, ip: str, maximum: int, window: int):
         # Applies to login, signup, pairing and OAuth client registration ONLY.
@@ -349,6 +411,20 @@ class Hub:
             raise Failure(401, "Invalid agent credentials")
         return device
 
+    def device_revoke(self, device: dict) -> dict:
+        """Disable exactly the authenticated device and unblock its pending jobs."""
+        did = device["id"]
+        self.execute("UPDATE devices SET enabled=0 WHERE id=? AND user_id=?",
+                     (did, device["user_id"]))
+        with self.state_lock:
+            self.queued.pop(did, None)
+            for job in list(self.pending.values()):
+                if job["device_id"] == did:
+                    job["result"] = json_text({"error": "Device revoked"}, True)
+                    job["event"].set()
+            self.state_lock.notify_all()
+        return {"revoked": True, "device_id": did}
+
     def agent_hello(self, device: dict, payload: dict) -> dict:
         machine = payload.get("machine_info", {})
         if not isinstance(machine, dict):
@@ -359,21 +435,24 @@ class Hub:
         safe_tools = sorted(set(x for x in tools if isinstance(x,str) and x in self.tool_names))
         info = {"platform": str(machine.get("platform", "unknown"))[:150],
                 "hostname": str(machine.get("name", ""))[:80],
-                "version": str(machine.get("agent_version", ""))[:30]}
+                 "version": str(payload.get("version") or machine.get("agent_version", ""))[:30]}
         self.execute("UPDATE devices SET tools=?,info=?,last_seen=? WHERE id=?",
-                     (json.dumps(safe_tools),json.dumps(info),time.time(),device["id"]))
+                     (json.dumps(safe_tools),json.dumps(info),time.time(),device["id"]),telemetry=True)
         return {"ok": True, "device_id": device["id"]}
 
     def agent_poll(self, device: dict) -> dict:
         did = device["id"]
-        self.execute("UPDATE devices SET last_seen=? WHERE id=?", (time.time(), did))
+        self.execute("UPDATE devices SET last_seen=? WHERE id=?", (time.time(), did),telemetry=True)
         deadline = time.monotonic() + 18
         with self.state_lock:
             while True:
                 while self.queued[did]:
                     job = self.queued[did].popleft()
                     if job["id"] in self.pending:
-                        return {"job": {"id": job["id"], "tool": job["tool"], "arguments": job["arguments"]}}
+                        job["dispatched_at"]=time.monotonic()
+                        return {"job": {"id": job["id"], "tool": job["tool"],
+                                        "arguments": job["arguments"],
+                                        "ttl_seconds":max(0,125-(time.monotonic()-job["enqueued_at"]))}}
                 remain = deadline - time.monotonic()
                 if remain <= 0:
                     return {"job": None}
@@ -388,8 +467,9 @@ class Hub:
             if not isinstance(data.get("result"), dict):
                 raise Failure(400, "Invalid tool result")
             job["result"] = data["result"]
+            job["completed_at"]=time.monotonic()
             job["event"].set()
-        self.execute("UPDATE devices SET last_seen=? WHERE id=?", (time.time(), device["id"]))
+        self.execute("UPDATE devices SET last_seen=? WHERE id=?", (time.time(), device["id"]),telemetry=True)
         return {"ok": True}
 
     def track(self, uid: str, device_id: str, tool: str, error: bool, *,
@@ -399,7 +479,7 @@ class Hub:
         self.execute("""INSERT INTO usage_daily(user_id,device_id,day,tool,calls,errors)
                     VALUES(?,?,?,?,1,?) ON CONFLICT(user_id,device_id,day,tool)
                     DO UPDATE SET calls=calls+1,errors=errors+excluded.errors""",
-                     (uid,device_id,day,tool,int(error)))
+                     (uid,device_id,day,tool,int(error)),telemetry=True)
         if error:
             detail = message if isinstance(message,str) else "Ошибка выполнения"
             detail = detail[:3000] or "Инструмент вернул ошибку без описания"
@@ -413,8 +493,60 @@ class Hub:
         owner = self.row("SELECT diagnostic FROM users WHERE id=?", (uid,))
         if owner and owner["diagnostic"]:
             self.execute("INSERT INTO diagnostics(user_id,created,device_id,tool,status) VALUES(?,?,?,?,?)",
-                         (uid,time.time(),device_id,tool,"error" if error else "ok"))
-            self.execute("DELETE FROM diagnostics WHERE created<?", (time.time()-86400*7,))
+                         (uid,time.time(),device_id,tool,"error" if error else "ok"),telemetry=True)
+
+
+    def performance_record(self, uid: str, job: dict, finished: float):
+        # Monotonic timestamps avoid clock changes during long-running jobs.
+        start=job.get("enqueued_at",finished)
+        dispatch=job.get("dispatched_at")
+        done=job.get("completed_at")
+        q=max(0,(dispatch-start)*1000) if dispatch is not None else None
+        a=max(0,(done-dispatch)*1000) if dispatch is not None and done is not None else None
+        relay=max(0,(finished-done)*1000) if done is not None else None
+        self.execute("""INSERT INTO performance_events(user_id,device_id,tool,created,
+                       queue_ms,agent_ms,relay_ms,total_ms,status)
+                       VALUES(?,?,?,?,?,?,?,?,?)""",
+                     (uid,job["device_id"],job["tool"],time.time(),
+                      q,a,relay,max(0,(finished-start)*1000),
+                      job.get("status","interrupted")),telemetry=True)
+
+    @staticmethod
+    def _percentile(values: list[float], portion: float) -> float | None:
+        if not values:return None
+        v=sorted(values)
+        return round(v[min(len(v)-1,int((len(v)-1)*portion))],1)
+
+    def performance_summary(self, uid: str, *, hours: int = 24,
+                            device: str = "") -> dict:
+        if not isinstance(hours,int) or not 1<=hours<=168:
+            raise Failure(400,"hours must be in 1..168")
+        if device and not self.user_device(uid,device):
+            raise Failure(404,"Device not found")
+        sql="""SELECT device_id,tool,queue_ms,agent_ms,relay_ms,total_ms,status
+               FROM performance_events WHERE user_id=? AND created>?"""
+        args=[uid,time.time()-hours*3600]
+        if device:
+            sql+=" AND device_id=?"
+            args.append(device)
+        sql+=" ORDER BY created DESC LIMIT 25000"
+        groups=defaultdict(list)
+        for record in self.rows(sql,args):
+            groups[(record["device_id"],record["tool"])].append(record)
+        stats=[]
+        for (did,tool),rows in sorted(groups.items()):
+            def aggregate(key):
+                values=[float(x[key]) for x in rows if x[key] is not None]
+                return {"p50_ms":self._percentile(values,.5),
+                        "p95_ms":self._percentile(values,.95),
+                        "max_ms":round(max(values),1) if values else None}
+            stats.append({"device_id":did,"tool":tool,"calls":len(rows),
+                          "errors":sum(x["status"]!="ok" for x in rows),
+                          "queue":aggregate("queue_ms"),"agent":aggregate("agent_ms"),
+                          "relay":aggregate("relay_ms"),"total":aggregate("total_ms")})
+        return {"hours":hours,"device":device,"groups":stats,
+                "sample_count":sum(len(g) for g in groups.values()),
+                "retention_days":7,"truncated":sum(len(g) for g in groups.values())>=25000}
 
     @staticmethod
     def error_text(result: dict) -> str:
@@ -468,8 +600,8 @@ class Hub:
         entry=self.row("SELECT * FROM error_events WHERE id=? AND user_id=?",(event_id,uid))
         if not entry:
             raise Failure(404,"Error event not found")
-        if not (self.trace.enabled and uid==self.trace.account_id):
-            return {"available":False,"reason":"Полная трассировка для аккаунта отключена",
+        if not self.trace.enabled:
+            return {"available":False,"reason":"Полная трассировка отключена",
                     "records":[]}
         device_id=entry["device_id"]
         if device_id!="hub" and not self.row("SELECT id FROM devices WHERE id=? AND user_id=?",
@@ -496,7 +628,11 @@ class Hub:
                         # Include only matching request and its corresponding
                         # job envelope (if available) from the owner's device.
                         trace_match=entry["request_id"] and item.get("request_id")==entry["request_id"]
-                        payload=item.get("payload")
+                        try:
+                            payload=self.trace.decode_payload(item.get("payload"))
+                        except (ValueError,KeyError,TypeError,OverflowError):
+                            continue
+                        item["payload"]=payload
                         job_match=(entry["job_id"] and isinstance(payload,dict) and
                                    (payload.get("id")==entry["job_id"] or
                                     isinstance(payload.get("job"),dict) and
@@ -549,23 +685,41 @@ class Hub:
                 "scopes_supported": ["remote.access"]}
 
     def oauth_register(self, params: dict) -> dict:
-        redirects = params.get("redirect_uris", [])
-        def allowed(uri: str) -> bool:
-            return (isinstance(uri, str) and (CLIENT_REDIRECT_RE.fullmatch(uri) is not None or
-                    (self.test_mode and re.fullmatch(r"http://127\.0\.0\.1:[1-9][0-9]{1,4}/callback",uri) is not None)))
-        if not isinstance(redirects, list) or not 1 <= len(redirects) <= 4 or not all(allowed(u) for u in redirects):
-            raise Failure(400, "Only recognized ChatGPT OAuth callback URLs are allowed")
-        if params.get("token_endpoint_auth_method", "none") != "none":
-            raise Failure(400, "Public OAuth clients with PKCE are required")
-        client = "c_"+secrets.token_urlsafe(30)
-        self.execute("INSERT INTO oauth_clients(id,redirects) VALUES(?,?)", (client,json.dumps(redirects)))
-        return {"client_id":client,"client_id_issued_at":int(time.time()),"redirect_uris":redirects,
-                "token_endpoint_auth_method":"none", "grant_types":["authorization_code","refresh_token"],
+        # RFC 7591 public-client DCR. Do not whitelist providers by brand.
+        # PKCE + redirect equality + user consent provide the security boundary.
+        redirects=params.get("redirect_uris",[])
+        if (not isinstance(redirects,list) or not 1<=len(redirects)<=12 or
+                not all(valid_oauth_redirect(u) for u in redirects) or
+                len(set(redirects))!=len(redirects)):
+            raise Failure(400,"Invalid OAuth redirect URIs: use HTTPS or a loopback HTTP callback with an explicit port")
+        if params.get("token_endpoint_auth_method","none")!="none":
+            raise Failure(400,"Public OAuth clients with PKCE are required")
+        grants=params.get("grant_types",["authorization_code","refresh_token"])
+        responses=params.get("response_types",["code"])
+        if (not isinstance(grants,list) or not grants or
+                not all(isinstance(item,str) for item in grants) or
+                set(grants)-{"authorization_code","refresh_token"} or
+                "authorization_code" not in grants or
+                not isinstance(responses,list) or responses!=["code"]):
+            raise Failure(400,"Only authorization_code, refresh_token and code response type supported")
+        display=params.get("client_name","MCP application")
+        if (not isinstance(display,str) or not 1<=len(display.strip())<=100 or
+                any(ord(c)<32 or ord(c)==127 for c in display)):
+            raise Failure(400,"Invalid OAuth client_name")
+        client="c_"+secrets.token_urlsafe(30)
+        display=display.strip()
+        self.execute("INSERT INTO oauth_clients(id,redirects,client_name) VALUES(?,?,?)",
+                     (client,json.dumps(redirects),display))
+        return {"client_id":client,"client_id_issued_at":int(time.time()),
+                "client_name":display,"redirect_uris":redirects,
+                "token_endpoint_auth_method":"none",
+                "grant_types":["authorization_code","refresh_token"],
                 "response_types":["code"]}
+
 
     def authorize(self, fields: dict) -> str:
         client_id = fields.get("client_id", "")
-        record = self.row("SELECT redirects FROM oauth_clients WHERE id=?", (client_id,))
+        record = self.row("SELECT redirects,client_name FROM oauth_clients WHERE id=?", (client_id,))
         redirect = fields.get("redirect_uri", "")
         if not record or redirect not in json.loads(record["redirects"]):
             raise Failure(400, "Unknown OAuth client or redirect")
@@ -583,18 +737,22 @@ class Hub:
         ticket = secrets.token_urlsafe(32)
         self.execute("""INSERT INTO oauth_requests(id,client_id,redirect,challenge,resource,state,scopes,expires)
                       VALUES(?,?,?,?,?,?,?,?)""",
-                     (ticket, client_id, redirect, challenge, self.resource,state,scope,time.time()+300))
+                     (ticket, client_id, redirect, challenge, self.resource,state,scope,time.time()+900))
         t = html.escape(ticket,quote=True)
         action = html.escape(self.base+"/oauth/approve", quote=True)
+        client_label=html.escape(record["client_name"],quote=True)
+        redirect_host=html.escape(urlparse(redirect).netloc,quote=True)
         return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Подключение ChatGPT — ASC Remote Hub</title><link rel="stylesheet" href="/static/style.css"></head>
-        <body><main class="oauth"><h1>Разрешить доступ ChatGPT</h1>
-        <p>Авторизуйся в <b>своей</b> учётной записи ASC Remote Hub. ChatGPT получит доступ только к твоим устройствам и в пределах разрешений каждого агента.</p>
+        <title>Подключение MCP-приложения — ASC Remote Hub</title><link rel="stylesheet" href="/static/style.css"></head>
+        <body><main class="oauth"><h1>Разрешить подключение MCP-приложения</h1>
+        <p>Авторизуйся в <b>своей</b> учётной записи ASC Remote Hub. Приложение <b>{client_label}</b> запрашивает доступ к устройствам твоего аккаунта в пределах разрешений агентов. Адрес возврата: <b>{redirect_host}</b>. Название указано самим приложением и не подтверждает его подлинность.</p>
         <form method="post" action="{action}"><input name="ticket" type="hidden" value="{t}">
         <label>Email<input name="email" type="email" required autocomplete="username"></label>
         <label>Пароль<input name="password" type="password" required autocomplete="current-password"></label>
-        <label class="check"><input type="checkbox" name="consent" value="yes" required> Я разрешаю подключить ChatGPT к моей учётной записи</label>
-        <button type="submit">Авторизовать ChatGPT</button></form>
+        <label class="check"><input type="checkbox" name="consent" value="yes" required> Я разрешаю подключить это MCP-приложение к моей учётной записи</label>
+        <button type="submit">Разрешить подключение</button></form>
+        <p class="sub">Форма действительна 15 минут <strong>с момента открытия страницы</strong>,
+        а не с момента ввода пароля. Если вкладка была открыта ранее, запусти новое подключение из MCP-приложения.</p>
         <p>Нет учётной записи? <a href="/">Зарегистрируйся бесплатно</a>, затем вернись к этой странице.</p>
         </main></body></html>"""
 
@@ -606,8 +764,14 @@ class Hub:
         if not isinstance(ticket,str) or len(ticket)>180:
             raise Failure(403, "Invalid authorization request")
         pending = self.row("SELECT * FROM oauth_requests WHERE id=?", (ticket,))
-        if pending is None or pending["expires"] < time.time():
-            raise Failure(403, "Authorization expired; start the connection again")
+        if pending is None:
+            # Either the original form has already been submitted or an old
+            # browser tab was used. Never accept a spent ticket a second time.
+            print("oauth_consent_rejected reason=missing_or_reused_ticket",flush=True)
+            raise Failure(403, "Authorization form already used or no longer exists. Start sign-in again from the MCP application; do not resubmit an old browser tab.")
+        if pending["expires"] < time.time():
+            print("oauth_consent_rejected reason=expired_ticket",flush=True)
+            raise Failure(403, "Authorization form expired after 15 minutes. Return to your MCP application and start sign-in again.")
         user = self.authenticate(fields.get("email",""),fields.get("password",""))
         if not user:
             raise Failure(401, "Invalid email or password")
@@ -667,6 +831,35 @@ class Hub:
                 return self._mint(db,row["user_id"],client,row["resource"],row["scopes"])
         raise Failure(400,"Unsupported OAuth grant")
 
+    def oauth_connections(self, uid: str) -> dict:
+        """List only clients with active credentials belonging to this user."""
+        rows=self.rows("""SELECT c.id AS client_id, c.client_name, c.redirects,
+                                 MAX(t.expires) AS expires
+                          FROM oauth_tokens t
+                          JOIN oauth_clients c ON c.id=t.client_id
+                          WHERE t.user_id=? AND t.expires>?
+                          GROUP BY c.id,c.client_name,c.redirects
+                          ORDER BY c.client_name,c.id LIMIT 100""",
+                       (uid,time.time()))
+        for row in rows:
+            row["callback_hosts"]=sorted({urlparse(uri).netloc for uri in
+                                          json.loads(row.pop("redirects"))})
+        return {"connections":rows}
+
+    def oauth_revoke_connection(self, uid: str, client_id: str) -> bool:
+        if not isinstance(client_id,str) or len(client_id)>128:
+            return False
+        with self.db_lock, self.db() as db:
+            exists=db.execute("SELECT 1 FROM oauth_tokens WHERE user_id=? AND client_id=? LIMIT 1",
+                              (uid,client_id)).fetchone()
+            if exists is None:
+                return False
+            db.execute("DELETE FROM oauth_tokens WHERE user_id=? AND client_id=?",
+                       (uid,client_id))
+            db.execute("DELETE FROM oauth_codes WHERE user_id=? AND client_id=?",
+                       (uid,client_id))
+        return True
+
     def oauth_owner(self, bearer: str) -> dict | None:
         if not isinstance(bearer,str) or not 20<len(bearer)<=256:
             return None
@@ -683,6 +876,13 @@ class Hub:
              "securitySchemes":[{"type":"oauth2","scopes":["remote.access"]}]},
             {"name":"usage_stats","description":"Get your own tool-use count and error count; no limits are imposed.",
              "inputSchema":{"type":"object","properties":{},"additionalProperties":False},
+             "annotations":{"readOnlyHint":True},
+             "securitySchemes":[{"type":"oauth2","scopes":["remote.access"]}]},
+            {"name":"performance_stats","description":"Per-device tool latency percentiles (queue, execution, relay, total) for your own account.",
+             "inputSchema":{"type":"object","properties":{
+                 "hours":{"type":"integer","minimum":1,"maximum":168},
+                 "device":{"type":"string","description":"Optional own device ID"}
+             },"additionalProperties":False},
              "annotations":{"readOnlyHint":True},
              "securitySchemes":[{"type":"oauth2","scopes":["remote.access"]}]},
             {"name":"get_profile","description":"Return the current authenticated ASC Remote Hub account profile.",
@@ -704,6 +904,10 @@ class Hub:
         if name == "usage_stats":
             self.track(uid,"hub",name,False)
             return json_text(self.usage(uid))
+        if name == "performance_stats":
+            self.track(uid,"hub",name,False)
+            return json_text(self.performance_summary(
+                uid,hours=args.get("hours",24),device=args.get("device","")))
         if name == "get_profile":
             account=self.row("SELECT id,email FROM users WHERE id=?",(uid,))
             profile={"id":account["id"],"email":account["email"]}
@@ -739,10 +943,14 @@ class Hub:
                        request_id=request_id)
             return json_text({"error":"Tool is not enabled by this device"},True)
         with self.state_lock:
+            if len(self.queued[did])>=256:
+                self.track(uid,did,name,True,message="Device queue full",request_id=request_id)
+                return json_text({"error":"Device queue full"},True)
             jobid=str(uuid.uuid4())
             event=threading.Event()
             job={"id":jobid,"event":event,"device_id":did,"user_id":uid,"tool":name,
-                 "arguments":{k:v for k,v in args.items() if k!="device"},"result":None}
+                 "arguments":{k:v for k,v in args.items() if k!="device"},"result":None,
+                 "enqueued_at":time.monotonic(),"status":"timeout"}
             self.pending[jobid]=job
             self.queued[did].append(job)
             self.state_lock.notify_all()
@@ -759,15 +967,18 @@ class Hub:
                            request_id=request_id,job_id=jobid)
                 return json_text({"error":"Invalid device response"},True)
             failed=bool(result.get("isError"))
+            job["status"]="tool_error" if failed else "ok"
             self.track(uid,did,name,failed,
                        message=self.error_text(result) if failed else "",
                        request_id=request_id if failed else None,
                        job_id=jobid if failed else None)
             return result
         finally:
+            finished=time.monotonic()
             with self.state_lock:
                 self.pending.pop(jobid,None)
                 self.queued[did]=deque(x for x in self.queued[did] if x["id"]!=jobid)
+            self.performance_record(uid,job,finished)
 
     def mcp(self, owner: dict, request: dict,
             request_id: str | None = None) -> dict | None:
@@ -816,7 +1027,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def trace_begin(self, user_id: str, device_id: str | None, payload: dict):
         # Never trace unauthenticated requests, login, OAuth, or device enrollment.
-        if not self.hub.trace.enabled or user_id != self.hub.trace.account_id:
+        if not self.hub.trace.enabled:
             return
         # MCP has no X-ASC-Device header. Derive the device from authenticated
         # tools/call arguments and validate tenant ownership before choosing
@@ -875,12 +1086,12 @@ class Handler(BaseHTTPRequestHandler):
             if self.route == "/mcp":
                 self.send_header("Access-Control-Expose-Headers", "WWW-Authenticate, MCP-Session-Id")
         if mimetype=="text/html":
-            # OAuth consent may be rendered by ChatGPT in an isolated context
-            # where CSP self does not resolve to the HTTPS hub origin. Scope
-            # form submissions to the exact consent endpoint and the already
-            # validated ChatGPT OAuth redirect host.
+            # Chromium enforces form-action against redirects after a POST,
+            # including our OAuth callback 302. The authorization handler
+            # validates the redirect against the registered client's exact URI
+            # before storing this origin. Never weaken to form-action *.
             form_target = (
-                self.hub.base+"/oauth/approve https://chatgpt.com"
+                self.hub.base+"/oauth/approve "+self._oauth_callback_origin
                 if self.route == "/oauth/authorize" else "'self'"
             )
             self.send_header("Content-Security-Policy",
@@ -1010,7 +1221,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200,self.hub.oauth_metadata())
         if path=="/oauth/authorize":
             fields={k:v[0] for k,v in parse_qs(urlparse(self.path).query,keep_blank_values=True).items()}
-            return self.send(200,self.hub.authorize(fields),mimetype="text/html")
+            consent_page=self.hub.authorize(fields)
+            callback=urlparse(fields["redirect_uri"])
+            # Auth validation was successful, so this origin is an exact
+            # registered, approved redirect URI. Only permit this callback
+            # in the consent page's form-action CSP.
+            self._oauth_callback_origin=callback.scheme+"://"+callback.netloc
+            return self.send(200,consent_page,mimetype="text/html")
         if path=="/":
             # Choose the HTML document BEFORE sending any response bytes.
             # Authenticated clients receive no login/register form markup,
@@ -1024,6 +1241,13 @@ class Handler(BaseHTTPRequestHandler):
             name = CLI if path=="/cli.tgz" else path.rsplit("/",1)[-1]
             return self.send(200,self.hub.public_packages[name].read_bytes(),
                              mimetype="application/gzip")
+        # Serve only explicit, immutable branding assets.
+        if path=="/favicon.ico":
+            return self.send(200,(Path(__file__).parent/"static/favicon.ico").read_bytes(),
+                             mimetype="image/x-icon")
+        if path in ("/static/brand-mark.png","/apple-touch-icon.png"):
+            return self.send(200,(Path(__file__).parent/"static/brand-mark.png").read_bytes(),
+                             mimetype="image/png")
         if path=="/static/style.css":
             return self.send(200,(Path(__file__).parent/"static/style.css").read_text(encoding="utf-8"),mimetype="text/css")
         if path in ("/static/common.js","/static/auth.js","/static/dashboard.js"):
@@ -1040,6 +1264,19 @@ class Handler(BaseHTTPRequestHandler):
         if path=="/api/devices":
             owner,_=self.session()
             return self.send(200,{"devices":self.hub.list_devices(owner["id"])})
+        if path=="/api/performance":
+            owner,_=self.session()
+            fields=parse_qs(urlparse(self.path).query)
+            try:
+                hours=int(fields.get("hours",["24"])[0])
+            except (ValueError,TypeError):
+                raise Failure(400,"Invalid hours")
+            device=fields.get("device",[""])[0]
+            return self.send(200,self.hub.performance_summary(
+                owner["id"],hours=hours,device=device))
+        if path=="/api/oauth/connections":
+            owner,_=self.session()
+            return self.send(200,self.hub.oauth_connections(owner["id"]))
         if path=="/api/usage":
             owner,_=self.session()
             return self.send(200,self.hub.usage(owner["id"]))
@@ -1101,6 +1338,12 @@ class Handler(BaseHTTPRequestHandler):
             sid,csrf=self.hub.session_create(user["id"])
             return self.send(200,{"ok":True,"email":user["email"],"csrf":csrf},
                              {"Set-Cookie":self.cookie_header(sid)})
+        if path=="/api/oauth/connections/revoke":
+            owner=self.csrf_owner()
+            body=self.jsonbody(4096)
+            if not self.hub.oauth_revoke_connection(owner["id"],body.get("client_id","")):
+                raise Failure(404,"OAuth connection not found")
+            return self.send(200,{"revoked":True})
         if path=="/api/logout":
             _,sid=self.session()
             self.csrf_owner()
@@ -1117,8 +1360,7 @@ class Handler(BaseHTTPRequestHandler):
             did=body.get("device_id","")
             if not isinstance(did,str) or not self.hub.user_device(owner["id"],did):
                 raise Failure(404,"Device not found")
-            self.hub.execute("UPDATE devices SET enabled=0 WHERE id=? AND user_id=?",(did,owner["id"]))
-            return self.send(200,{"revoked":True})
+            return self.send(200,self.hub.device_revoke(self.hub.user_device(owner["id"],did)))
         if path=="/api/account/diagnostics":
             owner=self.csrf_owner()
             body=self.jsonbody(4096)
@@ -1131,6 +1373,14 @@ class Handler(BaseHTTPRequestHandler):
             body=self.jsonbody(8192)
             return self.send(201,self.hub.pairing_redeem(body.get("pairing_code",""),
                                body.get("name",""),body.get("platform",""),body.get("tools",[])))
+        if path=="/agent/unpair":
+            # Only this device's bearer token may revoke this exact registration.
+            # No cookie or cross-account device identifier is sufficient.
+            device=self.agent_owner()
+            body=self.jsonbody(512)
+            if body.get("confirm_device_id") != device["id"]:
+                raise Failure(400,"Device confirmation mismatch")
+            return self.send(200,self.hub.device_revoke(device))
         if path in ("/agent/hello","/agent/next","/agent/result"):
             device=self.agent_owner()
             body=self.jsonbody()

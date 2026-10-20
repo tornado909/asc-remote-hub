@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import base64
+import zlib
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -13,18 +16,15 @@ _SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 class TrafficTrace:
     """Opt-in full-payload trace, partitioned by user and device.
 
-    Only the account selected by ASC_HUB_TRACE_ACCOUNT is collected.
-    Authentication endpoints and credentials are never captured.
+    When enabled, all authenticated accounts are collected independently.
+    Authentication endpoints, session cookies and credential headers are never captured.
     Every active stream has its own rotation and lock-protected writes.
     """
 
     def __init__(self, data_dir: Path, *, enabled: bool = False,
-                 account_id: str = "", max_bytes: int = 64 * 1024 * 1024,
+                 max_bytes: int = 64 * 1024 * 1024,
                  backups: int = 4) -> None:
-        if enabled and not account_id:
-            raise ValueError("Full traffic tracing requires ASC_HUB_TRACE_ACCOUNT")
         self.enabled = enabled
-        self.account_id = account_id
         self.max_bytes = max(1024, int(max_bytes))
         self.backups = min(12, max(1, int(backups)))
         self.directory = Path(data_dir) / "traffic-trace"
@@ -66,10 +66,38 @@ class TrafficTrace:
         if path.exists():
             path.replace(path.with_name(path.name + ".1"))
 
+    @staticmethod
+    def encode_payload(payload: object) -> object:
+        """Compress large payloads inline without losing a byte or requiring
+        external blob retention/GC. Older JSONL records stay readable.
+        """
+        raw=json.dumps(payload,ensure_ascii=False,separators=(",",":"),
+                       allow_nan=False).encode("utf-8")
+        if len(raw)<16_384:
+            return payload
+        packed=zlib.compress(raw,6)
+        if len(packed)*100>=len(raw)*85:
+            return payload
+        return {"_asc_trace_encoding":"zlib+base64","uncompressed_bytes":len(raw),
+                "sha256":hashlib.sha256(raw).hexdigest(),
+                "data":base64.b64encode(packed).decode("ascii")}
+
+    @staticmethod
+    def decode_payload(payload: object) -> object:
+        if (not isinstance(payload,dict) or
+                payload.get("_asc_trace_encoding")!="zlib+base64"):
+            return payload
+        packed=base64.b64decode(payload["data"],validate=True)
+        raw=zlib.decompress(packed)
+        if len(raw)!=payload["uncompressed_bytes"] or (
+                hashlib.sha256(raw).hexdigest()!=payload["sha256"]):
+            raise ValueError("Trace payload integrity check failed")
+        return json.loads(raw)
+
     def record(self, *, direction: str, route: str, user_id: str,
                device_id: str | None, request_id: str,
                payload: object, status: int | None = None) -> None:
-        if not self.enabled or user_id != self.account_id:
+        if not self.enabled:
             return
         record = {
             "utc": datetime.now(timezone.utc).isoformat(),
@@ -79,7 +107,7 @@ class TrafficTrace:
             "user_id": user_id,
             "device_id": device_id,
             "http_status": status,
-            "payload": payload,
+            "payload": self.encode_payload(payload),
         }
         try:
             line = (json.dumps(record, ensure_ascii=False, separators=(",", ":"),

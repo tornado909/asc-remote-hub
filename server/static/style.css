@@ -87,3 +87,16 @@ button.text-link:hover{text-decoration:underline}
 .errors-caption-open{display:none}
 .errors-collapsed[open] .errors-caption-open{display:inline}
 .errors-collapsed[open] .errors-caption-collapsed{display:none}
+
+/* ASC Remote Hub brand */
+.brand{display:flex;align-items:center;gap:9px}.brand-icon{width:32px;height:32px;flex-shrink:0;object-fit:contain}
+
+
+/* Local lifecycle commands are copyable, never browser-executable. */
+.manage-commands{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+.manage-operation{min-width:0;background:#101726;border:1px solid var(--border);padding:16px;border-radius:12px}
+.manage-operation p{margin:7px 0 12px}
+.manage-operation .install-command-area{margin:0;gap:10px;flex-wrap:wrap}
+.manage-operation code{overflow-wrap:anywhere;word-break:break-word;flex:1;font:12px/1.6 ui-monospace,Consolas,monospace;user-select:all}
+.manage-operation button{white-space:nowrap}
+@media(max-width:750px){.manage-commands{grid-template-columns:1fr}}

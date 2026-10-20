@@ -11,8 +11,8 @@ const readline=require('node:readline/promises');
 const {once}=require('node:events');
 
 const ORIGIN='__HUB_ORIGIN__';
-const VERSION='1.0.3';
-const ARCHIVE='asc-remote-hub-agent-1.0.3.tar.gz';
+const VERSION='1.1.3';
+const ARCHIVE='asc-remote-hub-agent-1.1.3.tar.gz';
 const CHECKSUM='__ARCHIVE_SHA256__';
 const WIN=process.platform==='win32';
 const HOME=os.homedir();
@@ -29,6 +29,11 @@ function help(){
     '3. Вставьте одноразовый код в установщик',
     '4. Дождитесь запуска фонового агента',
     '',
+    'Отвязать: npx --yes '+ORIGIN+'/cli.tgz unpair',
+    'Удалить:  npx --yes '+ORIGIN+'/cli.tgz uninstall',
+    '  --local-only  Сбросить локально, когда старый хаб недоступен',
+    '  --dry-run     Показать план без изменений для unpair/uninstall',
+    '',
     '--dry-run       Проверить загрузку и окружение без установки',
     '--read-only     Разрешить только чтение',
     '--full          Разрешить запись и выполнение команд (Windows: GUI)',
@@ -44,19 +49,26 @@ function help(){
 }
 function fail(text){throw new Error(text);}
 function options(argv){
-  const out={mode:null,name:os.hostname(),roots:HOME,dryRun:false};
+  const out={action:'connect',mode:null,name:os.hostname(),roots:HOME,dryRun:false,localOnly:false,yes:false};
   for(let i=0;i<argv.length;i++){
     const arg=argv[i];
-    if(arg==='-h'||arg==='--help')out.help=true;
+    if(['connect','unpair','uninstall'].includes(arg)&&i===0)out.action=arg;
+    else if(arg==='-h'||arg==='--help')out.help=true;
     else if(arg==='-v'||arg==='--version')out.version=true;
     else if(arg==='--dry-run')out.dryRun=true;
+    else if(arg==='--local-only')out.localOnly=true;
+    else if(arg==='--yes')out.yes=true;
     else if(arg==='--full')out.mode='full';
     else if(arg==='--read-only')out.mode='read-only';
     else if(arg==='--name'||arg==='--roots'){
       if(i+1>=argv.length)fail('Не указано значение '+arg);
       out[arg==='--name'?'name':'roots']=argv[++i];
-    }else if(arg!=='connect')fail('Неизвестный аргумент: '+arg);
+    }else fail('Неизвестный аргумент: '+arg);
   }
+  if(out.action==='connect'&&(out.localOnly||out.yes))
+    fail('--local-only и --yes доступны только для unpair/uninstall.');
+  if(out.action!=='connect'&&(out.mode||argv.includes('--name')||argv.includes('--roots')))
+    fail('Режим, имя и каталоги не используются при удалении/отвязке.');
   if(argv.includes('--full')&&argv.includes('--read-only'))fail('Нельзя сочетать --full и --read-only.');
   if(!out.name||out.name.length>80)fail('Имя устройства должно содержать от 1 до 80 символов.');
   return out;
@@ -183,11 +195,40 @@ function secret(prompt){
     process.stdin.on('data',handle);
   });
 }
+async function manageAgent(opt){
+  const {py,tar}=environment();
+  const dir=path.join(HOME,'.asc-remote-hub','agent');
+  const config=credentialPath();
+  if(!fs.existsSync(dir)&&!fs.existsSync(config)){
+    console.log('Агент не установлен или не привязан для текущего пользователя.');
+    return;
+  }
+  const tmp=await fsp.mkdtemp(path.join(os.tmpdir(),'asc-hub-management-'));
+  try {
+    const archive=path.join(tmp,ARCHIVE);
+    await acquireAgentArchive(archive);
+    archiveCheck(archive,tar);
+    const unpack=path.join(tmp,'unpacked');
+    await fsp.mkdir(unpack,{recursive:true});
+    exec(tar,['-xzf',archive,'-C',unpack],{stdio:'pipe'});
+    const manager=path.join(unpack,'asc-remote-hub','install','manage_agent.py');
+    if(!fs.existsSync(manager))fail('Нет подписанного содержимым пакета менеджера агента.');
+    const args=[manager,opt.action];
+    if(opt.localOnly)args.push('--local-only');
+    if(opt.dryRun)args.push('--dry-run');
+    if(opt.yes)args.push('--yes');
+    exec(py,args);
+  }finally{
+    await fsp.rm(tmp,{recursive:true,force:true}).catch(()=>{});
+  }
+}
+
 async function main(){
   const opt=options(process.argv.slice(2));
   if(opt.help){help();return;}
   if(opt.version){console.log(VERSION);return;}
   if(!['win32','linux'].includes(process.platform))fail('Поддерживаются только Windows и Linux.');
+  if(opt.action!=='connect'){await manageAgent(opt);return;}
   console.log('\nASC Remote Hub '+VERSION+' — '+(WIN?'Windows':'Linux'));
   console.log('Хаб: '+ORIGIN+' (только исходящий HTTPS)\n');
   const {py,tar}=environment();

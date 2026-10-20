@@ -107,10 +107,10 @@ class AgentTests(unittest.TestCase):
 
     def test_audit_does_not_contain_arguments(self):
         agent = Agent()
-        marker = "MY_TEST_SECRET_01234"
-        agent.handle_tool("stat_path", {"path": marker})
+        secret = "MY_TEST_SECRET_01234"
+        agent.handle_tool("stat_path", {"path": secret})
         audit = (agent.state_dir / "audit.jsonl").read_text(encoding="utf-8")
-        self.assertNotIn(marker, audit)
+        self.assertNotIn(secret, audit)
         self.assertIn("stat_path", audit)
 
     def test_stdio_integration(self):

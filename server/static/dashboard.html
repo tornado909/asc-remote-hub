@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ASC Remote Hub</title><link rel="stylesheet" href="/static/style.css"></head><body>
-<header><div class="brand"><span class="logo">⌘</span> ASC Remote Hub</div><div id="userbar"></div></header>
+<title>ASC Remote Hub</title><link rel="icon" href="/static/brand-mark.png" type="image/png"><link rel="alternate icon" href="/favicon.ico" type="image/x-icon"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/static/style.css"></head><body>
+<header><div class="brand"><img class="brand-icon" src="/static/brand-mark.png" width="32" height="32" alt=""> ASC Remote Hub</div><div id="userbar"></div></header>
 <main>
 <section class="card quick-installer" id="quick-installer">
   <div class="install-heading">
@@ -22,7 +22,7 @@
       <button type="button" id="install-win" class="install-os active" aria-pressed="true">Windows</button>
       <button type="button" id="install-linux" class="install-os" aria-pressed="false">Linux</button>
     </div>
-    <a class="install-doc" href="/downloads/asc-remote-hub-agent-1.0.0.tar.gz" download>Скачать исходники агента ↗</a>
+    <a class="install-doc" href="/downloads/asc-remote-hub-agent-1.1.3.tar.gz" download>Скачать исходники агента ↗</a>
   </div>
   <div class="install-command-area">
     <div class="install-command-text"><span class="install-prompt">&gt;</span><code id="install-command">Команда появится здесь</code></div>
@@ -39,6 +39,20 @@
 
     <p id="install-notice" class="notice" role="status"></p>
   </div>
+</section>
+<section class="card manage-agent" id="manage-agent">
+ <h2>Отвязать или удалить ASC Remote Hub</h2>
+ <p class="sub">Выполните команду <b>на том компьютере</b>, где установлен агент (Windows PowerShell или Linux). Сайт не удаляет программы удалённо.</p>
+ <div class="manage-commands">
+  <div class="manage-operation"><b>Отвязать устройство</b><p class="sub">Отозвать его ключ на текущем хабе, остановить автозапуск и удалить локальную привязку. Приложение останется для подключения к другому хабу.</p>
+   <div class="install-command-area"><code id="manage-unpair-command"></code><button class="outline" id="manage-unpair-copy" type="button">Скопировать</button></div>
+  </div>
+  <div class="manage-operation"><b>Удалить агент</b><p class="sub">Отозвать привязку, остановить агент и удалить установку, настройки и журналы текущего пользователя. Остальные программы и устройства не затрагиваются.</p>
+   <div class="install-command-area"><code id="manage-uninstall-command"></code><button class="outline" id="manage-uninstall-copy" type="button">Скопировать</button></div>
+  </div>
+ </div>
+ <p class="sub">Обе операции запросят локальное подтверждение. Если старый хаб недоступен, добавьте <code>--local-only</code>. Тогда не забудьте отдельно отозвать устройство на старом сервере. Для просмотра плана используйте <code>--dry-run</code>.</p>
+ <p class="notice" id="manage-notice" role="status"></p>
 </section>
 <section id="panel"><div class="titleline"><div><div class="eyebrow">Обзор</div><h1>Панель управления</h1><p id="email"></p></div><button class="outline" id="refresh">Обновить</button></div>
 <div class="stats"><div class="card"><div class="stat-number" id="total-calls">—</div><div class="sub">Всего вызовов</div></div>
@@ -70,8 +84,16 @@
 <label class="toggle"><input type="checkbox" id="diagnostic"> Сохранять названия инструментов и статус вызовов 7 дней</label>
 <p class="sub">Другие пользователи не видят ваши устройства и данные. Администратор сервера несёт ответственность за безопасность инфраструктуры.</p>
 <div id="diagnostic-events" class="sub"></div></section></div>
-<section class="card"><h2>Подключить ChatGPT</h2><p>Добавь свой HTTPS MCP-сервер в ChatGPT, затем авторизуйся с помощью своего email и пароля. Для каждого пользователя OAuth выдаёт отдельные токены.</p>
-<div class="endpoint" id="endpoint"></div><p class="sub">Раздел Plugins → Add custom MCP server → укажи адрес выше → OAuth → авторизация.</p></section>
+<section class="card"><h2>Подключение MCP-приложений</h2>
+<p>Один ASC Remote Hub для ChatGPT, Cursor, OpenMausBot и других MCP-клиентов. Укажите HTTPS-адрес в настройках Streamable HTTP MCP нужного приложения и пройдите OAuth-авторизацию под своей учётной записью.</p>
+<div class="endpoint" id="endpoint"></div>
+<p class="sub">В Cursor: <code>mcp.json</code> → <code id="mcp-example"></code>. В ChatGPT: добавить собственный MCP-сервер. Пароли и ключи агентов приложениям не передаются.</p>
+<p class="sub">После OAuth-подключения каждое приложение видит только ваши устройства и выданные им разрешения.</p>
+</section>
+<section class="card"><div class="cardhead"><div><h2>Авторизованные MCP-приложения</h2><p class="sub">Здесь можно отозвать доступ отдельного OAuth-клиента без отключения устройств или других приложений.</p></div>
+<button class="outline" id="oauth-refresh" type="button">Обновить</button></div>
+<div id="oauth-connections" aria-live="polite"><p class="sub">Загрузка подключений…</p></div>
+<p class="sub">Название приложения заявлено им самим. Проверяйте адрес возврата перед выдачей доступа.</p></section>
 <section class="card" id="admin-panel" hidden><h2>Администратор хаба — общая статистика</h2><p class="sub">Без списка пользователей, команд, файлов и содержимого ответов</p><div id="admin-stats"></div></section>
 <p id="panel-notice" class="notice"></p></section>
 </main><footer>ASC Remote Hub — ваши устройства под вашим контролем</footer><script src="/static/common.js" defer></script><script src="/static/dashboard.js" defer></script></body></html>

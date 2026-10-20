@@ -62,3 +62,27 @@ async function issuePairCode(){
 if($('install-create-pair')) $('install-create-pair').addEventListener('click',issuePairCode);
 chooseInstallPlatform(typeof navigator!=='undefined' && /Linux/i.test(navigator.userAgent||'')
     ? 'linux' : 'windows');
+
+
+// The site supplies commands for local execution only; never remotely invokes
+// an uninstall or exposes user credentials.
+const MANAGEMENT_COMMANDS={
+  unpair:'npx --yes '+INSTALLER_URL+' unpair',
+  uninstall:'npx --yes '+INSTALLER_URL+' uninstall'
+};
+for(const operation of ['unpair','uninstall']){
+  const output=$('manage-'+operation+'-command');
+  const button=$('manage-'+operation+'-copy');
+  if(output&&button){
+    output.textContent=MANAGEMENT_COMMANDS[operation];
+    button.addEventListener('click',async()=>{
+      try{
+        if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(MANAGEMENT_COMMANDS[operation]);
+        notice('manage-notice','Команда скопирована. Выполните её на нужном компьютере.');
+      }catch(e){
+        notice('manage-notice','Буфер обмена недоступен. Выделите текст команды вручную.');
+      }
+    });
+  }
+}

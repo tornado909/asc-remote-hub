@@ -11,6 +11,7 @@ import ctypes
 from ctypes import wintypes
 import tempfile
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import threading
 import getpass
 import json
@@ -26,7 +27,7 @@ from urllib.request import Request,urlopen
 from urllib.parse import urlparse
 from asc_remote_commander import Agent
 
-VERSION="1.0.3"
+VERSION="1.1.3"
 
 
 def default_config() -> Path:
@@ -183,7 +184,8 @@ def enroll(args):
 
 
 def load_config(path: Path):
-    conf=json.loads(path.read_text(encoding="utf-8"))
+    # Accept UTF-8 with or without a BOM (e.g. Windows PowerShell 5.1 output).
+    conf=json.loads(path.read_text(encoding="utf-8-sig"))
     check_url(conf["hub_url"])
     tokenpath=Path(conf["token_file"])
     encrypted=tokenpath.read_text(encoding="utf-8").strip()
@@ -262,6 +264,77 @@ def busy_heartbeat(busy: threading.Event, stop: threading.Event,
             print("Agent heartbeat unavailable:",type(exc).__name__,file=sys.stderr,flush=True)
 
 
+def record_connected_marker(device_id: str, *, directory: Path | None = None) -> bool:
+    """Mark a server-acknowledged hello for the Windows installer.
+
+    The marker contains only the device ID, process PID, version and time.
+    It never contains the device credential or any API response.
+    """
+    if directory is None:
+        if os.name != "nt":
+            return False
+        directory = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ASC-Remote-Hub" / "logs"
+    temporary = None
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(prefix=".connected-", dir=directory)
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump({"device_id": device_id, "connected_at": time.time(),
+                       "pid": os.getpid(), "version": VERSION}, out)
+        os.replace(temporary, directory / "agent.ready.json")
+        return True
+    except OSError as exc:
+        print("Could not save agent readiness marker:", type(exc).__name__,
+              file=sys.stderr, flush=True)
+        return False
+    finally:
+        if temporary:
+            Path(temporary).unlink(missing_ok=True)
+
+
+# Only explicit non-mutating reads can bypass the side-effect lane.
+READ_ONLY_JOBS = frozenset({
+    "machine_info","list_directory","stat_path","stat_paths","read_file",
+    "read_files","directory_tree","search_text","search_files","read_process",
+    "window_list"
+})
+GUI_JOBS = frozenset({
+    "screenshot","window_screenshot","window_focus","window_controls","window_action","terminal_send",
+    "click_mouse","type_text","press_keys","scroll_mouse"
+})
+MAX_CONCURRENT_JOBS = 4
+
+
+def execute_agent_job(agent, tool: str, args: dict,
+                      mutation_lock: threading.RLock,
+                      gui_lock: threading.RLock,
+                      deadline: float | None = None):
+    """Run independent reads concurrently; never start a side-effect after
+    the server-side job lease has expired while waiting on a lock.
+    """
+    def expired():
+        return deadline is not None and time.monotonic()>=deadline
+    def rejection():
+        return {"content":[{"type":"text",
+                             "text":"ExpiredBeforeExecution: task was not started"}],
+                "isError":True}
+    if expired():return rejection()
+    lock=gui_lock if tool in GUI_JOBS else (
+         None if tool in READ_ONLY_JOBS else mutation_lock)
+    if lock is None:
+        return agent.handle_tool(tool,args)
+    if deadline is not None:
+        obtained=lock.acquire(timeout=max(0,deadline-time.monotonic()))
+        if not obtained:return rejection()
+    else:
+        lock.acquire()
+    try:
+        if expired():return rejection()
+        return agent.handle_tool(tool,args)
+    finally:
+        lock.release()
+
+
 def run(args):
     config_path=Path(args.config).expanduser().resolve()
     with exclusive_agent_lock(config_path):
@@ -271,6 +344,8 @@ def run(args):
         busy=threading.Event()
         stopped=threading.Event()
         revoked=threading.Event()
+        mutation_lock=threading.RLock()
+        gui_lock=threading.RLock()
         hello={"machine_info":agent.machine_info({}),
                "tools":list(agent.tools),"version":VERSION}
         def send_hello():
@@ -279,51 +354,95 @@ def run(args):
             target=busy_heartbeat,args=(busy,stopped,revoked,send_hello),
             daemon=True,name="asc-hub-heartbeat")
         heart.start()
+
+        def process_job(job):
+            job_id=job.get("id")
+            tool=job.get("tool","")
+            args=job.get("arguments") or {}
+            ttl=job.get("ttl_seconds")
+            # Reserve two seconds for relaying the result before the server timeout.
+            deadline=(time.monotonic()+max(0,float(ttl)-2)
+                      if isinstance(ttl,(int,float)) and not isinstance(ttl,bool)
+                      else None)
+            result=execute_agent_job(agent,tool,args,mutation_lock,gui_lock,deadline)
+            for attempt in range(3):
+                try:
+                    request(hub,"/agent/result",{"id":job_id,"result":result},
+                            token,did,timeout=35)
+                    return
+                except HTTPError as exc:
+                    # Client/network retries never re-run the side effect.
+                    if exc.code==401:
+                        revoked.set()
+                    if exc.code < 500:
+                        print("Result rejected:",exc.code,file=sys.stderr,flush=True)
+                        return
+                    print("Result HTTP retry:",exc.code,file=sys.stderr,flush=True)
+                except (URLError,TimeoutError,OSError) as exc:
+                    print("Result transport retry:",type(exc).__name__,
+                          file=sys.stderr,flush=True)
+                if attempt<2:
+                    time.sleep(0.5*(attempt+1))
+            print("Could not deliver job result:",job_id,
+                  file=sys.stderr,flush=True)
+
         delay=2
         try:
-            while not revoked.is_set():
-                try:
-                    send_hello()
-                    delay=2
-                    while not revoked.is_set():
-                        item=request(hub,"/agent/next",{},token,did,timeout=29)
-                        job=item.get("job")
-                        if not isinstance(job,dict):
-                            continue
-                        # Only one job is fetched/executed at a time. During
-                        # execution a separate heartbeat updates last_seen,
-                        # preventing false "offline" after 50 seconds.
-                        busy.set()
-                        try:
-                            result=agent.handle_tool(job.get("tool",""),job.get("arguments") or {})
-                            try:
-                                request(hub,"/agent/result",
-                                        {"id":job.get("id"),"result":result},
-                                        token,did,timeout=35)
-                            except HTTPError as exc:
-                                # Never rerun a side-effecting command after
-                                # result delivery is rejected.
-                                print("Result delivery rejected:",exc.code,
-                                      file=sys.stderr,flush=True)
-                        finally:
-                            busy.clear()
-                except KeyboardInterrupt:
-                    break
-                except HTTPError as exc:
-                    if exc.code==401:
-                        print("Device revoked or authentication failed (401). Stopping agent.",
-                              file=sys.stderr,flush=True)
+            with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_JOBS,
+                                    thread_name_prefix="asc-hub-worker") as pool:
+                futures=set()
+                while not revoked.is_set():
+                    try:
+                        hello_reply=send_hello()
+                        if (hello_reply.get("ok") is not True or
+                                hello_reply.get("device_id") != did):
+                            raise ValueError("Hub did not acknowledge this device's hello")
+                        record_connected_marker(did)
+                        delay=2
+                        while not revoked.is_set():
+                            if len(futures)>=MAX_CONCURRENT_JOBS:
+                                finished,_=wait(futures,timeout=1,
+                                                 return_when=FIRST_COMPLETED)
+                                futures.difference_update(finished)
+                                for future in finished:
+                                    try:future.result()
+                                    except Exception as exc:
+                                        print("Worker job error:",type(exc).__name__,
+                                              file=sys.stderr,flush=True)
+                                if not futures:busy.clear()
+                                continue
+                            item=request(hub,"/agent/next",{},token,did,timeout=29)
+                            job=item.get("job")
+                            if isinstance(job,dict):
+                                busy.set()
+                                futures.add(pool.submit(process_job,job))
+                            finished={future for future in futures if future.done()}
+                            futures.difference_update(finished)
+                            for future in finished:
+                                try:future.result()
+                                except Exception as exc:
+                                    print("Worker job error:",type(exc).__name__,
+                                          file=sys.stderr,flush=True)
+                            if not futures:busy.clear()
+                    except KeyboardInterrupt:
+                        revoked.set()
                         break
-                    print("Hub returned HTTP",exc.code,file=sys.stderr,flush=True)
-                except (URLError,TimeoutError,OSError,ValueError) as exc:
-                    print("Hub unavailable:",type(exc).__name__,file=sys.stderr,flush=True)
-                time.sleep(delay)
-                delay=min(30,delay*2)
+                    except HTTPError as exc:
+                        if exc.code==401:
+                            print("Device revoked or authentication failed (401). Stopping.",
+                                  file=sys.stderr,flush=True)
+                            revoked.set()
+                            break
+                        print("Hub returned HTTP",exc.code,file=sys.stderr,flush=True)
+                    except (URLError,TimeoutError,OSError,ValueError) as exc:
+                        print("Hub unavailable:",type(exc).__name__,
+                              file=sys.stderr,flush=True)
+                    if not revoked.is_set():
+                        time.sleep(delay)
+                        delay=min(30,delay*2)
         finally:
             stopped.set()
             heart.join(timeout=2)
-
-
 
 def check_existing(args):
     """Validate local configuration without printing device credentials."""

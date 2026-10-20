@@ -8,6 +8,7 @@ ASC Remote Hub service using outbound-only TLS.
 from __future__ import annotations
 
 import base64
+import fnmatch
 import hashlib
 import itertools
 import json
@@ -26,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-VERSION = "1.0.0"
+VERSION = "1.1.2"
 MAX_INPUT = 2_000_000
 MAX_TEXT = 100_000
 MAX_FILE_WRITE = 256_000
@@ -63,10 +64,18 @@ class Agent:
         self.allow_write = enabled("ASC_RC_ALLOW_WRITE")
         self.allow_exec = enabled("ASC_RC_ALLOW_EXEC")
         self.allow_gui = enabled("ASC_RC_ALLOW_GUI")
+        # GUI capability does NOT imply permission to hijack the user's active
+        # desktop. This flag must be set LOCALLY in the agent environment.
+        self.allow_interactive_gui = enabled("ASC_RC_ALLOW_INTERACTIVE_GUI")
+        # UIA providers may activate themselves even without SendInput.
+        # Refuse mutations while the user is actively typing/moving their mouse.
+        self.uia_active_user_override = enabled("ASC_RC_UIA_ALLOW_ACTIVE_USER")
+        self._uia_focus_interference: set[tuple[int,int]] = set()
         self.allow_delete = enabled("ASC_RC_ALLOW_DELETE") and self.allow_write
         self.state_dir = Path(os.environ.get("ASC_RC_STATE_DIR", str(Path.home() / ".asc-remote-commander"))).resolve()
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, tuple[subprocess.Popen[bytes], Path, float]] = {}
+        self._isolated_desktops = None
         self._lock = threading.Lock()
         self.tools: dict[str, tuple[dict[str, Any], Callable[[dict[str, Any]], Any]]] = {}
         self._register_tools()
@@ -127,6 +136,25 @@ class Agent:
             "path": path_arg, "pattern": S("Filename glob, for example *.py"),
             "limit": num("Max matches", 1, 200), "depth": num("Maximum directory depth", 0, 10)},
             self.search_files, required=["path", "pattern"])
+        # Bounded, root-confined batched reads amortise MCP round-trips.
+        self._add("read_files", "Read up to 16 bounded UTF-8 file ranges in one call; stops at 100 KB aggregate.",
+                  {"files":{"type":"array","minItems":1,"maxItems":16,
+                   "items":{"type":"object","additionalProperties":False,
+                            "properties":{"path":path_arg,"offset":num("First line",0,100000),
+                                          "limit":num("Number of lines",1,500)},"required":["path"]}}},
+                  self.read_files, required=["files"])
+        self._add("stat_paths", "Stat up to 64 allowed files/directories at once.",
+                  {"paths":{"type":"array","minItems":1,"maxItems":64,"items":path_arg}},
+                  self.stat_paths, required=["paths"])
+        self._add("directory_tree", "Bounded recursive directory listing (no symlink traversal; max 250 entries).",
+                  {"path":path_arg,"depth":num("Maximum depth",0,5),
+                   "limit":num("Maximum entries",1,250)},self.directory_tree,required=["path"])
+        self._add("search_text", "Literal text search in bounded UTF-8 project files. No regular-expression execution.",
+                  {"path":path_arg,"query":S("Literal search string"),
+                   "pattern":S("Filename glob, e.g. *.py"),"depth":num("Directory depth",0,8),
+                   "limit":num("Maximum matches",1,100),
+                   "case_sensitive":{"type":"boolean"}},
+                  self.search_text,required=["path","query"])
         if self.allow_write:
             self._add("write_file", "Create/append/overwrite UTF-8 text under an allowed root. Overwrite destroys the old content. Maximum 256 KB per call.", {
                 "path": path_arg, "text": S("UTF-8 text to write"),
@@ -162,23 +190,140 @@ class Agent:
                 "job_id": S("Job ID from start_process")}, self.stop_process,
                 required=["job_id"], read_only=False, destructive=True)
         if self.allow_gui:
+            if os.name == "nt":
+                self._add("window_controls",
+                          "Read UI Automation controls inside ONE verified Windows window without moving the mouse or stealing focus. Choose a unique automation_id/name for window_action. Browser support varies.",
+                          {"hwnd":num("Target HWND from window_list",1,9223372036854775807),
+                           "expected_pid":num("Target PID from window_list",1,4294967295),
+                           "title_contains":S("Required stable title fragment, >=3 chars"),
+                           "limit":num("Max controls returned",1,150),
+                           "depth":num("Max control-tree depth",1,9)},
+                          self.window_controls,
+                          required=["hwnd","expected_pid","title_contains"])
+                self._add("window_action",
+                          "TARGETED UIA (no mouse/keyboard injection). May cause some apps to focus themselves; refuses actions while user actively works (<45 sec idle), and remembers windows that steal focus. Validates exact HWND/PID/title and one matching control. Unsupported actions fail; NO fallback to shared desktop.",
+                          {"hwnd":num("Target HWND from window_list",1,9223372036854775807),
+                           "expected_pid":num("Target PID from window_list",1,4294967295),
+                           "title_contains":S("Required stable title fragment, >=3 chars"),
+                           "selector":{"type":"object","additionalProperties":False,
+                                       "properties":{"automation_id":S("Exact unique UIA AutomationId"),
+                                                     "name":S("Exact UIA control name"),
+                                                     "control_type":S("Expected type, e.g. Button, Edit"),
+                                                     "class_name":S("Optional exact class name")}},
+                           "action":{"type":"string","enum":["invoke","set_value","toggle","select","expand","collapse"]},
+                           "value":S("Only for set_value; max 4000 chars")},
+                          self.window_action,
+                          required=["hwnd","expected_pid","title_contains","selector","action"],
+                          read_only=False)
+                if self.allow_exec:
+                    # Strictly process-owned Win32 Desktops. No shared mouse,
+                    # no SendInput, no VM, no arbitrary-window targets.
+                    desktop_id=S("Opaque desktop_id returned by gui_desktop_create")
+                    self._add("gui_desktop_create",
+                              "Create an isolated Win32 Desktop for GUI applications inside the CURRENT Windows session. No VM. No cursor/focus change; limited to 3 per agent. Security isolation NOT guaranteed.",
+                              {},self.gui_desktop_create,read_only=False)
+                    self._add("gui_desktop_sessions",
+                              "List only the isolated Desktops owned by this agent and their process IDs.",
+                              {},self.gui_desktop_sessions)
+                    self._add("gui_desktop_launch",
+                              "Launch an executable onto an agent-owned isolated desktop with native CreateProcessW(lpDesktop), in a Windows Job Object; no shell or VM. Requires absolute program, returns owned PID.",
+                              {"desktop_id":desktop_id,"program":S("Existing absolute EXE path"),
+                               "args":{"type":"array","items":{"type":"string"},"maxItems":19},
+                               "cwd":S("Optional existing absolute working directory")},
+                              self.gui_desktop_launch,required=["desktop_id","program"],
+                              read_only=False)
+                    self._add("gui_desktop_windows",
+                              "Enumerate top-level and child Win32 windows belonging ONLY to processes launched inside the given isolated Desktop.",
+                              {"desktop_id":desktop_id,
+                               "with_children":{"type":"boolean"},
+                               "limit":num("Max windows",1,100)},
+                              self.gui_desktop_windows,required=["desktop_id"])
+                    self._add("gui_desktop_action",
+                              "Address a standard Edit or Button control belonging to an owned isolated-desktop process. set_text uses WM_SETTEXT with verification; click_button uses BM_CLICK. NEVER moves physical mouse or sends global keystrokes.",
+                              {"desktop_id":desktop_id,
+                               "hwnd":num("Window handle from gui_desktop_windows",1,9223372036854775807),
+                               "expected_pid":num("Exact PID from gui_desktop_windows",1,4294967295),
+                               "method":{"type":"string","enum":["set_text","click_button"]},
+                               "text":S("Required for set_text; max 4000 chars"),
+                               "expected_class":S("Optional exact window class from gui_desktop_windows")},
+                              self.gui_desktop_action,
+                              required=["desktop_id","hwnd","expected_pid","method"],
+                              read_only=False)
+                    self._add("gui_desktop_capture",
+                              "Capture ONLY an owned isolated-desktop window via PrintWindow. Returns PNG base64 plus rendered/blank flags; GPU surfaces can fail (never claims success from a black image).",
+                              {"desktop_id":desktop_id,
+                               "hwnd":num("Window handle",1,9223372036854775807),
+                               "expected_pid":num("Owned window PID",1,4294967295),
+                               "max_width":num("Capture width",320,1920)},
+                              self.gui_desktop_capture,
+                              required=["desktop_id","hwnd","expected_pid"])
+                    self._add("gui_desktop_close",
+                              "Terminate the owned process tree through a kill-on-close Windows Job and close its isolated Desktop. No other desktop/process affected.",
+                              {"desktop_id":desktop_id},self.gui_desktop_close,
+                              required=["desktop_id"],read_only=False,
+                              destructive=True)
+                self._add("window_list", "Enumerate visible titled windows in the current Windows desktop (HWND, PID, bounds, foreground).",
+                          {"limit":num("Max windows",1,100)},self.window_list)
+                self._add("window_focus", "INTERACTIVE fallback: forcibly foregrounds a verified window and can disturb the user. Requires explicit allow_desktop_interference=true. Prefer background window_action.",
+                           {"hwnd":num("HWND from window_list",1,9223372036854775807),
+                            "expected_pid":num("Expected PID",1,4294967295),
+                            "title_contains":S("Required title substring"),
+                            "allow_desktop_interference":{"type":"boolean"}},
+                           self.window_focus,
+                           required=["hwnd","expected_pid","title_contains","allow_desktop_interference"],
+                           read_only=False)
+                self._add("window_screenshot", "Read-only screen crop of the window bounds. Can show OVERLAYING WINDOWS if target is occluded. Prefer window_controls for reliable background targeting.",
+                          {"hwnd":num("HWND from window_list",1,9223372036854775807),
+                           "max_width":num("Downsample width",320,2400)},
+                          self.window_screenshot,required=["hwnd"])
+                self._add("terminal_send", "INTERACTIVE only. Sends a line to a verified ALREADY-FOREGROUND terminal. Requires allow_desktop_interference=true. Refuses focus stealing; prefer run_command for CLI tasks.",
+                           {"hwnd":num("HWND from window_list",1,9223372036854775807),
+                            "expected_pid":num("Expected PID",1,4294967295),
+                            "title_contains":S("Required window title fragment"),
+                            "text":S("Single-line prompt, max 2000 characters"),
+                            "submit":{"type":"boolean"},
+                            "allow_desktop_interference":{"type":"boolean"}},
+                           self.terminal_send,
+                           required=["hwnd","expected_pid","title_contains","text","allow_desktop_interference"],
+                           read_only=False)
             self._add("screenshot", "Capture the current interactive desktop as a PNG image (may show personal information). Requires active graphical session and Pillow.", {
                 "max_width": num("Downsample width", 320, 2400)}, self.screenshot)
-            self._add("click_mouse", "Click within the interactive desktop. PyAutoGUI fail-safe is enabled.", {
-                "x": num("Screen X", 0, 20000), "y": num("Screen Y", 0, 20000),
-                "button": {"type": "string", "enum": ["left", "right", "middle"]},
-                "clicks": num("Number of clicks", 1, 2)}, self.click_mouse,
-                required=["x", "y"], read_only=False)
-            self._add("type_text", "Type text into the focused window. On Windows, Unicode input is supported. This changes the active application.", {
-                "text": S("Text, at most 4000 characters"), "interval_ms": num("Delay between characters", 0, 200)},
-                self.type_text, required=["text"], read_only=False)
-            self._add("press_keys", "Send a key or shortcut to the focused window using PyAutoGUI, e.g. ['ctrl','s'].", {
-                "keys": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 5}},
-                self.press_keys, required=["keys"], read_only=False)
-            self._add("scroll_mouse", "Scroll at the cursor position; positive values scroll up.", {
-                "clicks": num("Absolute number of notches", 1, 30),
-                "direction": {"type": "string", "enum": ["up", "down"]}},
-                self.scroll_mouse, required=["clicks", "direction"], read_only=False)
+            # Shared desktop injection is NOT safe by default. It requires explicit
+            # per-call opt-in and exact target identity, even under full GUI access.
+            if os.name == "nt":
+                identity={"hwnd":num("HWND from window_list",1,9223372036854775807),
+                          "expected_pid":num("Expected PID",1,4294967295),
+                          "title_contains":S("Expected title fragment (>=3 characters)"),
+                          "allow_desktop_interference":{"type":"boolean",
+                              "description":"Explicitly authorize shared user mouse/keyboard interference for THIS call."}}
+                self._add("click_mouse",
+                          "INTERACTIVE LEGACY FALLBACK only. Physically moves the user's mouse. Disabled without exact already-foreground HWND/PID/title and allow_desktop_interference=true. Prefer window_action.",
+                          {**identity,"x":num("Screen X",-32768,32767),
+                           "y":num("Screen Y",-32768,32767),
+                           "button":{"type":"string","enum":["left","right","middle"]},
+                           "clicks":num("Clicks",1,2)},self.click_mouse,
+                          required=["hwnd","expected_pid","title_contains","allow_desktop_interference","x","y"],
+                          read_only=False)
+                self._add("type_text",
+                          "INTERACTIVE LEGACY FALLBACK only, sends keys to verified already-foreground window. Disabled without explicit interference opt-in. Prefer window_action(set_value) for background text.",
+                          {**identity,"text":S("Max 4000 characters"),
+                           "interval_ms":num("Delay between characters",0,200)},
+                          self.type_text,
+                          required=["hwnd","expected_pid","title_contains","allow_desktop_interference","text"],
+                          read_only=False)
+                self._add("press_keys",
+                          "INTERACTIVE LEGACY FALLBACK only, sends shared keyboard shortcut to verified already-foreground window. Requires explicit interference opt-in.",
+                          {**identity,"keys":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":5}},
+                          self.press_keys,
+                          required=["hwnd","expected_pid","title_contains","allow_desktop_interference","keys"],
+                          read_only=False)
+                self._add("scroll_mouse",
+                          "INTERACTIVE LEGACY FALLBACK only. Scrolls verified already-foreground window if mouse is already over it; explicit interference opt-in required.",
+                          {**identity,"clicks":num("Scroll notches",1,30),
+                           "direction":{"type":"string","enum":["up","down"]}},
+                          self.scroll_mouse,
+                          required=["hwnd","expected_pid","title_contains","allow_desktop_interference","clicks","direction"],
+                          read_only=False)
 
     def machine_info(self, a: dict[str, Any]) -> dict[str, Any]:
         return {"name": socket.gethostname(), "platform": platform.platform(), "python": platform.python_version(),
@@ -225,6 +370,109 @@ class Agent:
             return {"path": str(p), "offset": offset, "text": text, "truncated_mid_line": True}
         return {"path": str(p), "offset": offset, "text": text,
                 "next_offset": offset + min(len(chunk), limit) if has_more else None}
+
+    def read_files(self, a: dict[str, Any]) -> dict[str, Any]:
+        files=a.get("files")
+        if not isinstance(files,list) or not 1<=len(files)<=16:
+            raise ValueError("files must be a list with 1-16 items")
+        output=[]
+        used=0
+        for item in files:
+            if not isinstance(item,dict) or set(item)-{"path","offset","limit"}:
+                raise ValueError("Invalid read_files item")
+            chunk=self.read_file(item)
+            encoded=len(chunk["text"].encode("utf-8"))
+            if output and used+encoded>MAX_TEXT:
+                return {"files":output,"truncated":True,"reason":"Aggregate 100 KB limit"}
+            if encoded>MAX_TEXT:
+                # read_file has its own mid-line cap.
+                chunk["text"]=chunk["text"].encode("utf-8")[:MAX_TEXT].decode("utf-8",errors="ignore")
+                chunk["truncated_mid_line"]=True
+                output.append(chunk)
+                return {"files":output,"truncated":True,"reason":"Aggregate 100 KB limit"}
+            output.append(chunk)
+            used+=encoded
+        return {"files":output,"truncated":False}
+
+    def stat_paths(self, a: dict[str, Any]) -> dict[str, Any]:
+        paths=a.get("paths")
+        if not isinstance(paths,list) or not 1<=len(paths)<=64:
+            raise ValueError("paths must have 1-64 entries")
+        return {"entries":[self.stat_path({"path":p}) for p in paths]}
+
+    def directory_tree(self, a: dict[str, Any]) -> dict[str, Any]:
+        root=self.path(a["path"],True)
+        if not root.is_dir():
+            raise NotADirectoryError(str(root))
+        depth=checked_int(a.get("depth",2),0,5)
+        limit=checked_int(a.get("limit",150),1,250)
+        entries=[]
+        start=time.monotonic()
+        for current,dirs,files in os.walk(root,followlinks=False):
+            level=len(Path(current).relative_to(root).parts)
+            dirs[:]=sorted(d for d in dirs
+                           if not Path(current,d).is_symlink()) if level<depth else []
+            for name in sorted(dirs+files):
+                p=Path(current)/name
+                if p.is_symlink(): continue
+                try:self.path(str(p))
+                except AccessDenied:continue
+                entries.append({"path":str(p),"type":"directory" if p.is_dir() else "file"})
+                if len(entries)>=limit or time.monotonic()-start>5:
+                    return {"entries":entries,"truncated":True}
+            if level>=depth:dirs[:]=[]
+        return {"entries":entries,"truncated":False}
+
+    def search_text(self, a: dict[str, Any]) -> dict[str, Any]:
+        root=self.path(a["path"],True)
+        if not root.is_dir(): raise NotADirectoryError(str(root))
+        query=a.get("query")
+        if not isinstance(query,str) or not 1<=len(query)<=200 or chr(0) in query:
+            raise ValueError("query must contain 1-200 characters")
+        pattern=a.get("pattern","*")
+        if not isinstance(pattern,str) or not pattern or "/" in pattern or "\\\\" in pattern or len(pattern)>100:
+            raise ValueError("pattern must be a filename glob")
+        depth=checked_int(a.get("depth",4),0,8)
+        limit=checked_int(a.get("limit",50),1,100)
+        sensitive=a.get("case_sensitive",False)
+        if not isinstance(sensitive,bool): raise ValueError("case_sensitive must be boolean")
+        needle=query if sensitive else query.casefold()
+        start=time.monotonic()
+        scanned=0
+        consumed=0
+        matches=[]
+        for current,dirs,files in os.walk(root,followlinks=False):
+            level=len(Path(current).relative_to(root).parts)
+            dirs[:]=sorted(d for d in dirs if d not in
+                {".git","node_modules",".venv","venv","__pycache__",".cache","bin","obj"}
+                and not Path(current,d).is_symlink()) if level<depth else []
+            for name in sorted(files):
+                if not fnmatch.fnmatch(name,pattern):continue
+                p=Path(current)/name
+                if p.is_symlink():continue
+                try:
+                    self.path(str(p))
+                    size=p.stat().st_size
+                    if size>1_000_000 or consumed+size>16_000_000:continue
+                    scanned+=1
+                    if scanned>600:
+                        return {"matches":matches,"files_scanned":scanned-1,"truncated":True,"reason":"file_limit"}
+                    consumed+=size
+                    with p.open("r",encoding="utf-8-sig",errors="replace") as stream:
+                        for n,line in enumerate(stream,1):
+                            if n>100000:break
+                            haystack=line if sensitive else line.casefold()
+                            if needle in haystack:
+                                matches.append({"path":str(p),"line":n,"text":line.rstrip()[:240]})
+                                if len(matches)>=limit:
+                                    return {"matches":matches,"files_scanned":scanned,
+                                            "truncated":True,"reason":"match_limit"}
+                except (OSError,UnicodeError):
+                    continue
+                if time.monotonic()-start>5:
+                    return {"matches":matches,"files_scanned":scanned,"truncated":True,"reason":"time_limit"}
+            if level>=depth:dirs[:]=[]
+        return {"matches":matches,"files_scanned":scanned,"truncated":False}
 
     def search_files(self, a: dict[str, Any]) -> dict[str, Any]:
         import fnmatch
@@ -417,6 +665,310 @@ class Agent:
                 proc.wait(timeout=4)
         return {"stopped": True, "exit_code": proc.returncode}
 
+    def _isolated(self):
+        """Create one manager lazily; it persists as long as the bridge agent."""
+        self.require("gui")
+        self.require("exec")
+        if os.name!="nt":
+            raise RuntimeError("Isolated Win32 Desktops require Windows")
+        if self._isolated_desktops is None:
+            import atexit
+            from asc_isolated_desktop import IsolatedDesktops
+            self._isolated_desktops=IsolatedDesktops()
+            atexit.register(self._isolated_desktops.close_all)
+        return self._isolated_desktops
+
+    def gui_desktop_create(self,a:dict[str,Any])->dict[str,Any]:
+        return self._isolated().create()
+
+    def gui_desktop_sessions(self,a:dict[str,Any])->dict[str,Any]:
+        return self._isolated().sessions()
+
+    def gui_desktop_launch(self,a:dict[str,Any])->dict[str,Any]:
+        program=a.get("program")
+        if not isinstance(program,str) or not os.path.isabs(program):
+            raise ValueError("An absolute executable path is required")
+        arguments=a.get("args",[])
+        if not isinstance(arguments,list):
+            raise ValueError("args must be a list")
+        cwd=a.get("cwd")
+        if cwd is not None and not isinstance(cwd,str):
+            raise ValueError("cwd must be a string")
+        return self._isolated().launch(
+            a["desktop_id"],[program]+arguments,cwd)
+
+    def gui_desktop_windows(self,a:dict[str,Any])->dict[str,Any]:
+        children=a.get("with_children",True)
+        if not isinstance(children,bool):
+            raise ValueError("with_children must be boolean")
+        limit=checked_int(a.get("limit",80),1,100)
+        return self._isolated().windows(a["desktop_id"],children,limit)
+
+    def gui_desktop_action(self,a:dict[str,Any])->dict[str,Any]:
+        return self._isolated().action(
+            a["desktop_id"],
+            checked_int(a.get("hwnd"),1,9223372036854775807),
+            checked_int(a.get("expected_pid"),1,4294967295),
+            a.get("method"),text=a.get("text"),
+            expected_class=a.get("expected_class"))
+
+    def gui_desktop_capture(self,a:dict[str,Any])->dict[str,Any]:
+        return self._isolated().capture(
+            a["desktop_id"],
+            checked_int(a.get("hwnd"),1,9223372036854775807),
+            checked_int(a.get("expected_pid"),1,4294967295),
+            checked_int(a.get("max_width",1000),320,1920))
+
+    def gui_desktop_close(self,a:dict[str,Any])->dict[str,Any]:
+        return self._isolated().close(a["desktop_id"])
+
+    def _windows(self):
+        self.require("gui")
+        if os.name!="nt":
+            raise RuntimeError("Windows interactive desktop required")
+        import ctypes
+        from ctypes import wintypes
+        user32=ctypes.windll.user32
+        # Native handles are pointer-sized, not Python's default C int:
+        # without explicit prototypes HWND can silently truncate on x64.
+        user32.IsWindow.argtypes=[wintypes.HWND]
+        user32.IsWindow.restype=wintypes.BOOL
+        user32.IsWindowVisible.argtypes=[wintypes.HWND]
+        user32.IsWindowVisible.restype=wintypes.BOOL
+        user32.GetWindowTextLengthW.argtypes=[wintypes.HWND]
+        user32.GetWindowTextLengthW.restype=ctypes.c_int
+        user32.GetWindowTextW.argtypes=[wintypes.HWND,ctypes.c_wchar_p,ctypes.c_int]
+        user32.GetWindowTextW.restype=ctypes.c_int
+        user32.GetWindowThreadProcessId.argtypes=[
+            wintypes.HWND,ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowThreadProcessId.restype=wintypes.DWORD
+        user32.GetWindowRect.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.RECT)]
+        user32.GetWindowRect.restype=wintypes.BOOL
+        user32.GetForegroundWindow.restype=wintypes.HWND
+        user32.SetForegroundWindow.argtypes=[wintypes.HWND]
+        user32.SetForegroundWindow.restype=wintypes.BOOL
+        user32.GetCursorPos.argtypes=[ctypes.POINTER(wintypes.POINT)]
+        user32.GetCursorPos.restype=wintypes.BOOL
+        return ctypes,wintypes,user32
+
+    def _window_details(self, hwnd: int) -> dict[str, Any]:
+        ctypes,wintypes,user32=self._windows()
+        if not isinstance(hwnd,int) or hwnd<=0 or not user32.IsWindow(hwnd):
+            raise ValueError("Window HWND does not exist")
+        length=user32.GetWindowTextLengthW(hwnd)
+        title=ctypes.create_unicode_buffer(max(1,length+1))
+        user32.GetWindowTextW(hwnd,title,len(title))
+        pid=wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
+        rect=wintypes.RECT()
+        if not user32.GetWindowRect(hwnd,ctypes.byref(rect)):
+            raise RuntimeError("Cannot read window coordinates")
+        return {"hwnd":hwnd,"pid":pid.value,"title":title.value,
+                "visible":bool(user32.IsWindowVisible(hwnd)),
+                "foreground":int(user32.GetForegroundWindow())==hwnd,
+                "rect":{"left":rect.left,"top":rect.top,"right":rect.right,"bottom":rect.bottom}}
+
+    def window_list(self,a:dict[str,Any])->dict[str,Any]:
+        ctypes,wintypes,user32=self._windows()
+        limit=checked_int(a.get("limit",50),1,100)
+        windows=[]
+        # Windows uses pointer-sized HWND; callbacks must remain referenced.
+        callback=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
+        def visit(hwnd,lparam):
+            try:
+                if user32.IsWindowVisible(hwnd) and user32.GetWindowTextLengthW(hwnd)>0:
+                    win=self._window_details(int(hwnd))
+                    if win["title"]:windows.append(win)
+                return 0 if len(windows)>=limit else 1
+            except (ValueError,RuntimeError):
+                return 1
+        cb=callback(visit)
+        user32.EnumWindows(cb,0)
+        return {"windows":windows,"truncated":len(windows)>=limit}
+
+    def _target_window(self, a: dict[str, Any], *, foreground: bool = False) -> dict[str, Any]:
+        """Verify HWND+PID+title of one specific Windows window, never guessing by focus."""
+        self.require("gui")
+        hwnd=checked_int(a.get("hwnd"),1,9223372036854775807)
+        pid=checked_int(a.get("expected_pid"),1,4294967295)
+        title=a.get("title_contains")
+        if not isinstance(title,str) or len(title.strip())<3:
+            raise ValueError("title_contains must be a stable fragment of >=3 characters")
+        item=self._window_details(hwnd)
+        rect=item["rect"]
+        if item["pid"]!=pid or title.casefold() not in item["title"].casefold():
+            raise ValueError("Target window identity changed; refresh window_list")
+        if not item["visible"] or rect["right"]<=rect["left"] or rect["bottom"]<=rect["top"]:
+            raise ValueError("Target window is not visible")
+        if foreground and not item["foreground"]:
+            raise AccessDenied("Target is not foreground; refusing keyboard/mouse injection. Use window_action for background control.")
+        return item
+
+    def _interactive_target(self, a: dict[str, Any], *, foreground: bool = True) -> dict[str, Any]:
+        # TWO independent gates: a locally-administered setting plus deliberate
+        # per-call opt-in. An LLM cannot enable physical desktop control alone.
+        if not self.allow_interactive_gui:
+            raise AccessDenied("Interactive desktop control is disabled by this agent's local policy (ASC_RC_ALLOW_INTERACTIVE_GUI=0); window_controls is always safe to inspect.")
+        if a.get("allow_desktop_interference") is not True:
+            raise AccessDenied("Shared-desktop mouse/keyboard injection is disabled by default. Use window_controls/window_action (background), or explicitly set allow_desktop_interference=true with HWND, expected_pid and title_contains.")
+        return self._target_window(a,foreground=foreground)
+
+    def _desktop_idle_seconds(self) -> float:
+        """Local Windows session last-input timer; no touch/keyboard injection."""
+        ctypes,wintypes,user32=self._windows()
+        class LASTINPUTINFO(ctypes.Structure):
+            _fields_=[("cbSize",wintypes.UINT),("dwTime",wintypes.DWORD)]
+        info=LASTINPUTINFO()
+        info.cbSize=ctypes.sizeof(info)
+        user32.GetLastInputInfo.argtypes=[ctypes.POINTER(LASTINPUTINFO)]
+        user32.GetLastInputInfo.restype=wintypes.BOOL
+        if not user32.GetLastInputInfo(ctypes.byref(info)):
+            raise RuntimeError("Cannot verify Windows user-idle state")
+        ticks=ctypes.windll.kernel32.GetTickCount() & 0xffffffff
+        elapsed=(ticks-int(info.dwTime)) & 0xffffffff
+        return elapsed/1000.0
+
+    def _require_desktop_idle(self) -> int:
+        """Reject UIA mutations while the local person is using this session."""
+        seconds=0 if self.uia_active_user_override else 45
+        if seconds and self._desktop_idle_seconds()<seconds:
+            raise AccessDenied("UserActive: background UIA action refused because the human is using the desktop. No key or mouse event was injected.")
+        return seconds
+
+    def _windows_uia(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Call the signed-by-package PowerShell UIA backend, never invoking SendInput."""
+        self.require("gui")
+        if os.name!="nt":
+            raise RuntimeError("Background Windows UI Automation is Windows-only")
+        script=Path(__file__).resolve().with_name("windows_uia.ps1")
+        if not script.is_file():
+            raise RuntimeError("Windows UI Automation backend is missing from the agent installation")
+        data=json.dumps(payload,ensure_ascii=False,separators=(",",":")).encode("utf-8")
+        if len(data)>16000:
+            raise ValueError("UI Automation request exceeds 16 KB")
+        try:
+            proc=subprocess.run(
+                ["powershell.exe","-NoLogo","-NoProfile","-NonInteractive",
+                 "-ExecutionPolicy","Bypass","-File",str(script)],
+                input=data,capture_output=True,timeout=19,check=False,
+                creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("UIA_TIMEOUT: target provider did not respond within 19 seconds") from None
+        if proc.returncode!=0 or not proc.stdout:
+            raise RuntimeError("UIA_BACKEND_UNAVAILABLE: PowerShell UI Automation failed")
+        try:
+            output=json.loads(proc.stdout.decode("utf-8-sig"))
+        except (UnicodeError,ValueError) as exc:
+            raise RuntimeError("UIA_BACKEND_INVALID_JSON") from exc
+        if not isinstance(output,dict) or output.get("ok") is not True:
+            error=output.get("error","UIA_PROVIDER_ERROR") if isinstance(output,dict) else "UIA_PROVIDER_ERROR"
+            raise RuntimeError("UIA_"+str(error)[:90])
+        return output
+
+    def window_controls(self,a:dict[str,Any])->dict[str,Any]:
+        item=self._target_window(a)
+        limit=checked_int(a.get("limit",90),1,150)
+        depth=checked_int(a.get("depth",6),1,9)
+        return self._windows_uia({
+            "mode":"list","hwnd":item["hwnd"],"expected_pid":item["pid"],
+            "title_contains":a["title_contains"],"limit":limit,"depth":depth
+        })
+
+    def window_action(self,a:dict[str,Any])->dict[str,Any]:
+        item=self._target_window(a)
+        if (item["hwnd"],item["pid"]) in self._uia_focus_interference:
+            raise AccessDenied("UIA provider for this window previously stole focus; refusing further shared-desktop UIA actions")
+        selector=a.get("selector")
+        if not isinstance(selector,dict) or not (
+            isinstance(selector.get("automation_id"),str) and selector.get("automation_id").strip() or
+            isinstance(selector.get("name"),str) and selector.get("name").strip()):
+            raise ValueError("A unique UIA selector automation_id or exact name is required")
+        fields=("automation_id","name","control_type","class_name")
+        if set(selector)-set(fields) or any(not isinstance(value,str) for value in selector.values()):
+            raise ValueError("Invalid UIA selector fields")
+        action=a.get("action")
+        if action not in ("invoke","set_value","toggle","select","expand","collapse"):
+            raise ValueError("Unknown UIA action")
+        if action=="set_value":
+            value=a.get("value")
+            if not isinstance(value,str) or len(value)>4000:
+                raise ValueError("set_value requires text of at most 4000 characters")
+        elif a.get("value") is not None:
+            raise ValueError("Only set_value supports a value")
+        # Do idle preflight only for a valid action, never for a rejected request.
+        min_idle=self._require_desktop_idle()
+        result=self._windows_uia({
+            "mode":"action","hwnd":item["hwnd"],"expected_pid":item["pid"],
+            "title_contains":a["title_contains"],
+            "selector":{key:selector[key] for key in fields if key in selector},
+            "action":action,"min_idle_seconds":min_idle,
+            **({"value":a["value"]} if action=="set_value" else {})
+        })
+        if result.get("foreground_unchanged") is not True:
+            self._uia_focus_interference.add((item["hwnd"],item["pid"]))
+            raise RuntimeError("UIA_FOCUS_INTERFERENCE: target app changed user foreground. Window blocked for further UIA actions in this agent session.")
+        return result
+
+    def window_focus(self,a:dict[str,Any])->dict[str,Any]:
+        item=self._interactive_target(a,foreground=False)
+        ctypes,wintypes,user32=self._windows()
+        hwnd=item["hwnd"]
+        if not item["foreground"]:
+            # Do not spoof Alt / send shared keyboard keys to bypass OS focus rules.
+            user32.SetForegroundWindow(hwnd)
+        fresh=self._target_window(a,foreground=True)
+        return {"hwnd":hwnd,"pid":fresh["pid"],"title":fresh["title"],
+                "foreground":True,"desktop_interference":True}
+
+    def window_screenshot(self,a:dict[str,Any])->dict[str,Any]:
+        self.require("gui")
+        from PIL import ImageGrab
+        import io
+        hwnd=checked_int(a.get("hwnd"),1,9223372036854775807)
+        win=self._window_details(hwnd)
+        if not win["visible"]:raise ValueError("Window is hidden")
+        rect=win["rect"]
+        box=(rect["left"],rect["top"],rect["right"],rect["bottom"])
+        if box[2]-box[0]<10 or box[3]-box[1]<10:
+            raise ValueError("Window has no drawable area")
+        im=ImageGrab.grab(bbox=box,all_screens=True)
+        max_width=checked_int(a.get("max_width",1600),320,2400)
+        if im.width>max_width:im.thumbnail((max_width,int(im.height*max_width/im.width)))
+        memory=io.BytesIO()
+        im.save(memory,format="PNG",optimize=True)
+        if memory.tell()>4_000_000:
+            raise ValueError("Window screenshot exceeds 4 MB; reduce max_width")
+        return {"_image":base64.b64encode(memory.getvalue()).decode("ascii"),
+                "width":im.width,"height":im.height,"hwnd":hwnd}
+
+    def terminal_send(self,a:dict[str,Any])->dict[str,Any]:
+        self.require("gui")
+        target=self._interactive_target(a)
+        hwnd=target["hwnd"]
+        pid=target["pid"]
+        text=a.get("text")
+        if not isinstance(text,str) or not 1<=len(text)<=2000 or any(ch in text for ch in map(chr,(10,13,0))):
+            raise ValueError("Send a single text line of 1-2000 chars")
+        submit=a.get("submit",True)
+        if not isinstance(submit,bool):
+            raise ValueError("submit must be boolean")
+        # Never focus a different window: this is an explicit interactive action
+        # only on the already-foreground terminal. No effect on user's mouse.
+        gui=self._gui()
+        if text.isascii():
+            for char in text:
+                self._target_window(a,foreground=True)
+                gui.write(char,interval=0)
+        else:
+            windows_unicode_type(text,0,focus_guard=lambda:self._target_window(a,foreground=True))
+        current=self._target_window(a,foreground=True)
+        if current["pid"]!=pid:
+            raise RuntimeError("Terminal identity changed: not submitting")
+        if submit:
+            gui.press("enter")
+        return {"hwnd":hwnd,"pid":pid,"typed_characters":len(text),
+                "submitted":submit,"foreground_verified":True,"desktop_interference":True}
+
     def screenshot(self, a: dict[str, Any]) -> dict[str, Any]:
         self.require("gui")
         try:
@@ -446,59 +998,66 @@ class Agent:
         return pyautogui
 
     def click_mouse(self, a: dict[str, Any]) -> dict[str, Any]:
-        gui = self._gui()
-        x, y = checked_int(a["x"], 0, 20000), checked_int(a["y"], 0, 20000)
-        if not 0 <= x < gui.size().width or not 0 <= y < gui.size().height:
-            raise ValueError("Coordinates outside primary display")
-        button = a.get("button", "left")
-        if button not in ("left", "right", "middle"):
-            raise ValueError("Invalid button")
-        gui.click(x, y, clicks=checked_int(a.get("clicks", 1), 1, 2), button=button)
-        return {"clicked": [x, y], "button": button}
+        target=self._interactive_target(a)
+        x,y=checked_int(a.get("x"),-32768,32767),checked_int(a.get("y"),-32768,32767)
+        rect=target["rect"]
+        if not (rect["left"]<=x<rect["right"] and rect["top"]<=y<rect["bottom"]):
+            raise AccessDenied("Refusing to click outside the verified target window")
+        button=a.get("button","left")
+        if button not in ("left","right","middle"):
+            raise ValueError("Invalid mouse button")
+        clicks=checked_int(a.get("clicks",1),1,2)
+        # Desktop injection is never used without explicit opt-in above.
+        self._gui().click(x,y,clicks=clicks,button=button)
+        return {"clicked":[x,y],"button":button,
+                "target_hwnd":target["hwnd"],"desktop_interference":True}
 
-    def type_text(self, a: dict[str, Any]) -> dict[str, Any]:
-        gui = self._gui()
-        text = a["text"]
-        if not isinstance(text, str) or len(text) > 4000:
+    def type_text(self,a:dict[str,Any])->dict[str,Any]:
+        target=self._interactive_target(a)
+        text=a.get("text")
+        if not isinstance(text,str) or len(text)>4000:
             raise ValueError("Max 4000 characters")
-        interval = checked_int(a.get("interval_ms", 0), 0, 200) / 1000
-        if os.name == "nt" and not text.isascii():
-            # Windows Unicode input via keyboard without changing clipboard.
-            windows_unicode_type(text, interval)
-        elif text.isascii():
-            gui.write(text, interval=interval)
+        interval=checked_int(a.get("interval_ms",0),0,200)/1000
+        if os.name=="nt":
+            windows_unicode_type(text,interval,focus_guard=lambda:self._target_window(a,foreground=True))
         else:
-            # On Linux use clipboard paste so Cyrillic/Unicode works.
-            try:
-                import pyperclip
-                previous = pyperclip.paste()
-                pyperclip.copy(text)
-                gui.hotkey("ctrl", "v")
-                time.sleep(0.1)
-                pyperclip.copy(previous)
-            except ImportError as e:
-                raise RuntimeError("Install pyperclip for Unicode typing on Linux") from e
-        return {"typed_characters": len(text)}
+            gui=self._gui()
+            for char in text:
+                self._target_window(a,foreground=True)
+                gui.write(char,interval=interval)
+        return {"typed_characters":len(text),"target_hwnd":target["hwnd"],
+                "desktop_interference":True}
 
-    def press_keys(self, a: dict[str, Any]) -> dict[str, Any]:
-        gui = self._gui()
-        keys = a["keys"]
-        if not isinstance(keys, list) or not 1 <= len(keys) <= 5 or any(not isinstance(k, str) or k not in gui.KEYBOARD_KEYS for k in keys):
+    def press_keys(self,a:dict[str,Any])->dict[str,Any]:
+        target=self._interactive_target(a)
+        gui=self._gui()
+        keys=a.get("keys")
+        if not isinstance(keys,list) or not 1<=len(keys)<=5 or any(
+                not isinstance(k,str) or k not in gui.KEYBOARD_KEYS for k in keys):
             raise ValueError("Unknown keyboard key")
-        if len(keys) == 1:
+        self._target_window(a,foreground=True)
+        if len(keys)==1:
             gui.press(keys[0])
         else:
             gui.hotkey(*keys)
-        return {"keys": keys}
+        return {"keys":keys,"target_hwnd":target["hwnd"],"desktop_interference":True}
 
-    def scroll_mouse(self, a: dict[str, Any]) -> dict[str, Any]:
-        gui = self._gui()
-        clicks = checked_int(a["clicks"], 1, 30)
-        direction = a["direction"]
-        if direction not in ("up", "down"):
+    def scroll_mouse(self,a:dict[str,Any])->dict[str,Any]:
+        target=self._interactive_target(a)
+        clicks=checked_int(a.get("clicks"),1,30)
+        direction=a.get("direction")
+        if direction not in ("up","down"):
             raise ValueError("Invalid scroll direction")
-        gui.scroll(clicks if direction == "up" else -clicks)
-        return {"scrolled": clicks, "direction": direction}
+        ctypes,wintypes,user32=self._windows()
+        cursor=wintypes.POINT()
+        if not user32.GetCursorPos(ctypes.byref(cursor)):
+            raise RuntimeError("Cannot verify current mouse position")
+        rect=target["rect"]
+        if not (rect["left"]<=cursor.x<rect["right"] and rect["top"]<=cursor.y<rect["bottom"]):
+            raise AccessDenied("Mouse is outside the verified target window; refusing scroll")
+        self._gui().scroll(clicks if direction=="up" else -clicks)
+        return {"scrolled":clicks,"direction":direction,"target_hwnd":target["hwnd"],
+                "desktop_interference":True}
 
     def handle_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self.tools:
@@ -548,7 +1107,7 @@ def windows_input_events(text: str) -> list[tuple[int,int,int]]:
     return events
 
 
-def windows_unicode_type(s: str, interval: float) -> None:
+def windows_unicode_type(s: str, interval: float, focus_guard: Callable[[], Any] | None = None) -> None:
     # https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-sendinput
     import ctypes
     from ctypes import wintypes
@@ -567,6 +1126,8 @@ def windows_unicode_type(s: str, interval: float) -> None:
         _anonymous_ = ("u",)
         _fields_ = [("type", wintypes.DWORD), ("u", INPUT_U)]
     for virtual_key, scan_code, flags in windows_input_events(s):
+        if not (flags & 0x0002) and focus_guard is not None:
+            focus_guard()
         record = INPUT(type=1, ki=KEYBDINPUT(virtual_key, scan_code, flags, 0, 0))
         if ctypes.windll.user32.SendInput(1, ctypes.byref(record), ctypes.sizeof(INPUT)) != 1:
             raise RuntimeError("Windows SendInput failed")

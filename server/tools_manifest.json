@@ -597,7 +597,7 @@
   },
   {
     "name": "click_mouse",
-    "description": "Click within the interactive desktop. PyAutoGUI fail-safe is enabled.",
+    "description": "INTERACTIVE LEGACY FALLBACK only. Physically moves the user's mouse. Disabled without exact already-foreground HWND/PID/title and allow_desktop_interference=true. Prefer window_action.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -605,17 +605,37 @@
           "type": "string",
           "description": "Exact device ID returned by list_devices (only your own devices)."
         },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Expected PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Expected title fragment (>=3 characters)"
+        },
+        "allow_desktop_interference": {
+          "type": "boolean",
+          "description": "Explicitly authorize shared user mouse/keyboard interference for THIS call."
+        },
         "x": {
           "type": "integer",
           "description": "Screen X",
-          "minimum": 0,
-          "maximum": 20000
+          "minimum": -32768,
+          "maximum": 32767
         },
         "y": {
           "type": "integer",
           "description": "Screen Y",
-          "minimum": 0,
-          "maximum": 20000
+          "minimum": -32768,
+          "maximum": 32767
         },
         "button": {
           "type": "string",
@@ -627,7 +647,7 @@
         },
         "clicks": {
           "type": "integer",
-          "description": "Number of clicks",
+          "description": "Clicks",
           "minimum": 1,
           "maximum": 2
         }
@@ -635,6 +655,10 @@
       "additionalProperties": false,
       "required": [
         "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "allow_desktop_interference",
         "x",
         "y"
       ]
@@ -655,7 +679,7 @@
   },
   {
     "name": "type_text",
-    "description": "Type text into the focused window. On Windows, Unicode input is supported. This changes the active application.",
+    "description": "INTERACTIVE LEGACY FALLBACK only, sends keys to verified already-foreground window. Disabled without explicit interference opt-in. Prefer window_action(set_value) for background text.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -663,9 +687,29 @@
           "type": "string",
           "description": "Exact device ID returned by list_devices (only your own devices)."
         },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Expected PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Expected title fragment (>=3 characters)"
+        },
+        "allow_desktop_interference": {
+          "type": "boolean",
+          "description": "Explicitly authorize shared user mouse/keyboard interference for THIS call."
+        },
         "text": {
           "type": "string",
-          "description": "Text, at most 4000 characters"
+          "description": "Max 4000 characters"
         },
         "interval_ms": {
           "type": "integer",
@@ -677,6 +721,10 @@
       "additionalProperties": false,
       "required": [
         "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "allow_desktop_interference",
         "text"
       ]
     },
@@ -696,13 +744,33 @@
   },
   {
     "name": "press_keys",
-    "description": "Send a key or shortcut to the focused window using PyAutoGUI, e.g. ['ctrl','s'].",
+    "description": "INTERACTIVE LEGACY FALLBACK only, sends shared keyboard shortcut to verified already-foreground window. Requires explicit interference opt-in.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "device": {
           "type": "string",
           "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Expected PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Expected title fragment (>=3 characters)"
+        },
+        "allow_desktop_interference": {
+          "type": "boolean",
+          "description": "Explicitly authorize shared user mouse/keyboard interference for THIS call."
         },
         "keys": {
           "type": "array",
@@ -716,6 +784,10 @@
       "additionalProperties": false,
       "required": [
         "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "allow_desktop_interference",
         "keys"
       ]
     },
@@ -735,7 +807,7 @@
   },
   {
     "name": "scroll_mouse",
-    "description": "Scroll at the cursor position; positive values scroll up.",
+    "description": "INTERACTIVE LEGACY FALLBACK only. Scrolls verified already-foreground window if mouse is already over it; explicit interference opt-in required.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -743,9 +815,29 @@
           "type": "string",
           "description": "Exact device ID returned by list_devices (only your own devices)."
         },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Expected PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Expected title fragment (>=3 characters)"
+        },
+        "allow_desktop_interference": {
+          "type": "boolean",
+          "description": "Explicitly authorize shared user mouse/keyboard interference for THIS call."
+        },
         "clicks": {
           "type": "integer",
-          "description": "Absolute number of notches",
+          "description": "Scroll notches",
           "minimum": 1,
           "maximum": 30
         },
@@ -760,6 +852,10 @@
       "additionalProperties": false,
       "required": [
         "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "allow_desktop_interference",
         "clicks",
         "direction"
       ]
@@ -777,5 +873,808 @@
         ]
       }
     ]
+  },
+  {
+    "name": "read_files",
+    "description": "Read up to 16 bounded UTF-8 file ranges in one call; stops at 100 KB aggregate.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Absolute path under ASC_RC_ROOTS"
+              },
+              "offset": {
+                "type": "integer",
+                "description": "First line",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Number of lines",
+                "minimum": 1,
+                "maximum": 500
+              }
+            },
+            "required": [
+              "path"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "files"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "stat_paths",
+    "description": "Stat up to 64 allowed files/directories at once.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "description": "Absolute path under ASC_RC_ROOTS"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "paths"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "directory_tree",
+    "description": "Bounded recursive directory listing (no symlink traversal; max 250 entries).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "depth": {
+          "type": "integer",
+          "description": "Maximum depth",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum entries",
+          "minimum": 1,
+          "maximum": 250
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "search_text",
+    "description": "Literal text search in bounded UTF-8 project files. No regular-expression execution.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path under ASC_RC_ROOTS"
+        },
+        "query": {
+          "type": "string",
+          "description": "Literal search string"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Filename glob, e.g. *.py"
+        },
+        "depth": {
+          "type": "integer",
+          "description": "Directory depth",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum matches",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "case_sensitive": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "path",
+        "query"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "window_list",
+    "description": "Enumerate visible titled windows in the current Windows desktop (HWND, PID, bounds, foreground).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max windows",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "window_focus",
+    "description": "INTERACTIVE fallback: forcibly foregrounds a verified window and can disturb the user. Requires explicit allow_desktop_interference=true. Prefer background window_action.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Expected PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Required title substring"
+        },
+        "allow_desktop_interference": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "allow_desktop_interference"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "window_screenshot",
+    "description": "Read-only screen crop of the window bounds. Can show OVERLAYING WINDOWS if target is occluded. Prefer window_controls for reliable background targeting.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "max_width": {
+          "type": "integer",
+          "description": "Downsample width",
+          "minimum": 320,
+          "maximum": 2400
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "hwnd"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "terminal_send",
+    "description": "INTERACTIVE only. Sends a line to a verified ALREADY-FOREGROUND terminal. Requires allow_desktop_interference=true. Refuses focus stealing; prefer run_command for CLI tasks.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Expected PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Required window title fragment"
+        },
+        "text": {
+          "type": "string",
+          "description": "Single-line prompt, max 2000 characters"
+        },
+        "submit": {
+          "type": "boolean"
+        },
+        "allow_desktop_interference": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "text",
+        "allow_desktop_interference"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "window_controls",
+    "description": "Read UI Automation controls inside ONE verified Windows window without moving the mouse or stealing focus. Choose a unique automation_id/name for window_action. Browser support varies.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "Target HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Target PID from window_list",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Required stable title fragment, >=3 chars"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max controls returned",
+          "minimum": 1,
+          "maximum": 150
+        },
+        "depth": {
+          "type": "integer",
+          "description": "Max control-tree depth",
+          "minimum": 1,
+          "maximum": 9
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "window_action",
+    "description": "BACKGROUND ONLY. Invoke a uniquely identified button or set_value/toggle/select/expand/collapse via native Windows UI Automation. Verifies HWND, PID, title, exactly one control. Never injects mouse or keyboard. Unsupported UIA patterns fail closed; NO automatic desktop fallback.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "Target HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Target PID from window_list",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Required stable title fragment, >=3 chars"
+        },
+        "selector": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "automation_id": {
+              "type": "string",
+              "description": "Exact unique UIA AutomationId"
+            },
+            "name": {
+              "type": "string",
+              "description": "Exact UIA control name"
+            },
+            "control_type": {
+              "type": "string",
+              "description": "Expected type, e.g. Button, Edit"
+            },
+            "class_name": {
+              "type": "string",
+              "description": "Optional exact class name"
+            }
+          }
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "invoke",
+            "set_value",
+            "toggle",
+            "select",
+            "expand",
+            "collapse"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "Only for set_value; max 4000 chars"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "selector",
+        "action"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "gui_desktop_create",
+    "description": "Create an isolated Win32 Desktop for GUI applications inside the CURRENT Windows session. No VM. No cursor/focus change; limited to 3 per agent. Security isolation NOT guaranteed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "gui_desktop_sessions",
+    "description": "List only the isolated Desktops owned by this agent and their process IDs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "gui_desktop_launch",
+    "description": "Launch an executable onto an agent-owned isolated desktop with native CreateProcessW(lpDesktop), in a Windows Job Object; no shell or VM. Requires absolute program, returns owned PID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "desktop_id": {
+          "type": "string",
+          "description": "Opaque desktop_id returned by gui_desktop_create"
+        },
+        "program": {
+          "type": "string",
+          "description": "Existing absolute EXE path"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 19
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Optional existing absolute working directory"
+        }
+      },
+      "required": [
+        "device",
+        "desktop_id",
+        "program"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "gui_desktop_windows",
+    "description": "Enumerate top-level and child Win32 windows belonging ONLY to processes launched inside the given isolated Desktop.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "desktop_id": {
+          "type": "string",
+          "description": "Opaque desktop_id returned by gui_desktop_create"
+        },
+        "with_children": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max windows",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "device",
+        "desktop_id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "gui_desktop_action",
+    "description": "Address a standard Edit or Button control belonging to an owned isolated-desktop process. set_text uses WM_SETTEXT with verification; click_button uses BM_CLICK. NEVER moves physical mouse or sends global keystrokes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "desktop_id": {
+          "type": "string",
+          "description": "Opaque desktop_id returned by gui_desktop_create"
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "Window handle from gui_desktop_windows",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Exact PID from gui_desktop_windows",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "set_text",
+            "click_button"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "description": "Required for set_text; max 4000 chars"
+        },
+        "expected_class": {
+          "type": "string",
+          "description": "Optional exact window class from gui_desktop_windows"
+        }
+      },
+      "required": [
+        "device",
+        "desktop_id",
+        "hwnd",
+        "expected_pid",
+        "method"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "gui_desktop_capture",
+    "description": "Capture ONLY an owned isolated-desktop window via PrintWindow. Returns PNG base64 plus rendered/blank flags; GPU surfaces can fail (never claims success from a black image).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "desktop_id": {
+          "type": "string",
+          "description": "Opaque desktop_id returned by gui_desktop_create"
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "Window handle",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Owned window PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "max_width": {
+          "type": "integer",
+          "description": "Capture width",
+          "minimum": 320,
+          "maximum": 1920
+        }
+      },
+      "required": [
+        "device",
+        "desktop_id",
+        "hwnd",
+        "expected_pid"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "gui_desktop_close",
+    "description": "Terminate the owned process tree through a kill-on-close Windows Job and close its isolated Desktop. No other desktop/process affected.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "desktop_id": {
+          "type": "string",
+          "description": "Opaque desktop_id returned by gui_desktop_create"
+        }
+      },
+      "required": [
+        "device",
+        "desktop_id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
+    }
   }
 ]

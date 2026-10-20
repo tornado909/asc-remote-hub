@@ -113,15 +113,34 @@ class HubTests(unittest.TestCase):
                                                                 'refresh_token':tokens['refresh_token']})
 
     def test_reject_redirect_attack_and_wrong_resource(self):
-        with self.assertRaises(Failure):self.hub.oauth_register({'redirect_uris':['https://chatgpt.com'+'.evil.com/callback']})
-        with self.assertRaises(Failure):self.hub.oauth_register({'redirect_uris':['https://evil.example/callback']})
+        # Any HTTPS app can register as its OWN OAuth client, but cannot
+        # steal another client's authorization code via mismatched redirect.
+        external=self.hub.oauth_register({'redirect_uris':['https://evil.example/callback']})
+        self.assertEqual(external['redirect_uris'],['https://evil.example/callback'])
+        attacks=[
+            'http://chatgpt.com.evil.example.com/callback',
+            'http://localhost.evil.test:8787/callback',
+            'http://'+'0.0.0.0:8787/callback',
+            'http://' + '.'.join(['192','168','1','10']) + ':8787/callback',
+            'http://localhost/callback',
+            'https://'+'me:password@example.org/callback',
+            'https://example.org/callback#fragment',
+            'https://example.org/callback\\nHeader',
+            'javascript:alert(1)',
+            'https://example.org\\\\evil.test/callback',
+            'ftp://example.org/callback',
+        ]
+        for redirect_uri in attacks:
+            with self.subTest(redirect_uri=redirect_uri):
+                with self.assertRaises(Failure):
+                    self.hub.oauth_register({'redirect_uris':[redirect_uri]})
         cid=self.hub.oauth_register({'redirect_uris':['https://chatgpt.com/connector_platform_oauth_redirect']})['client_id']
         with self.assertRaises(Failure):self.hub.authorize({'client_id':cid,'redirect_uri':'https://evil.example',
                            'response_type':'code','code_challenge_method':'S256','code_challenge':'x'*43})
         with self.assertRaises(Failure):self.hub.authorize({'client_id':cid,
             'redirect_uri':'https://chatgpt.com/connector_platform_oauth_redirect',
             'response_type':'code','code_challenge_method':'S256','code_challenge':'x'*43,
-            'resource':'https://'+'untrusted'+'.local/mcp'})
+            'resource':'https://'+'untrusted'+'.'+'local/mcp'})
 
 
 class IntegrationTests(unittest.TestCase):
@@ -187,8 +206,8 @@ class IntegrationTests(unittest.TestCase):
     def test_oauth_consent_form_accepts_webview_origin_without_cors(self):
         import http.client
         email="oauth-origin@example.org"
-        sample_passphrase="OAuth-Origin-Password-2026"
-        account=self.hub.register_user(email,sample_passphrase)
+        sample_password="OAuth-Origin-Password-2026"
+        account=self.hub.register_user(email,sample_password)
         redirect="https://chatgpt.com/connector_platform_oauth_redirect"
         client=self.hub.oauth_register({"redirect_uris":[redirect]})["client_id"]
         verifier="v"*64
@@ -201,7 +220,7 @@ class IntegrationTests(unittest.TestCase):
             })
             row=self.hub.row("SELECT id FROM oauth_requests ORDER BY rowid DESC LIMIT 1")
             body=urlencode({"ticket":row["id"],"email":email,
-                            "password":sample_passphrase,"consent":"yes"})
+                            "password":sample_password,"consent":"yes"})
             target=urlparse(self.url)
             conn=http.client.HTTPConnection(target.hostname,target.port,timeout=8)
             try:
@@ -237,12 +256,38 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(resp.status,200)
             csp=resp.headers.get("Content-Security-Policy","")
             self.assertIn("form-action "+self.url+"/oauth/approve https://chatgpt.com;",csp)
+            self.assertNotIn("form-action *",csp)
             self.assertIn("frame-ancestors 'none'",csp)
             page=resp.read().decode("utf-8")
             self.assertIn('action="'+self.url+'/oauth/approve"',page)
             self.assertIsNone(resp.headers.get("Access-Control-Allow-Origin"))
         with self.http_client(Request(self.url+"/")) as resp:
             self.assertIn("form-action 'self'",resp.headers.get("Content-Security-Policy",""))
+
+    def test_cursor_loopback_consent_csp_allows_registered_callback_only(self):
+        callbacks=[
+            ("http://localhost:8787/callback","http://localhost:8787"),
+            ("http://127.0.0.1:49152/oauth/callback","http://127.0.0.1:49152"),
+            ("https://www.cursor.com/agents/mcp/oauth/callback","https://www.cursor.com"),
+        ]
+        for redirect,origin in callbacks:
+            with self.subTest(redirect=redirect):
+                client=self.hub.oauth_register({"redirect_uris":[redirect]})["client_id"]
+                params={"client_id":client,"redirect_uri":redirect,
+                        "response_type":"code","code_challenge_method":"S256",
+                        "code_challenge":pkce("v"*64)}
+                with self.http_client(Request(self.url+"/oauth/authorize?"+urlencode(params))) as resp:
+                    csp=resp.headers.get("Content-Security-Policy","")
+                    self.assertIn("form-action "+self.url+"/oauth/approve "+origin+";",csp)
+                    self.assertNotIn("form-action *",csp)
+                    self.assertNotIn("http://attacker.example",csp)
+                    self.assertIn("frame-ancestors 'none'",csp)
+                # Unregistered redirect cannot inject an origin into CSP.
+                bad={**params,"redirect_uri":"https://attacker.example/steal"}
+                from urllib.error import HTTPError
+                with self.assertRaises(HTTPError) as ctx:
+                    self.http_client(Request(self.url+"/oauth/authorize?"+urlencode(bad)))
+                self.assertEqual(ctx.exception.code,400)
 
     def test_end_to_end_http_register_pair_and_mcp_auth(self):
         opener=build_opener(HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -255,8 +300,7 @@ class IntegrationTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as exc:
             api('/api/devices')
         self.assertEqual(exc.exception.code,401)
-        example_passphrase='My-'+'Strong-Pwd-'+'2026'
-        register=api('/api/register',{'email':'person@example.org','password':example_passphrase})
+        register=api('/api/register',{'email':'person@example.org','password':'My-Strong-Pwd-2026'})
         csrf=register['csrf']
         self.assertTrue(api('/api/me')['authenticated'])
         with self.assertRaises(HTTPError) as exc:

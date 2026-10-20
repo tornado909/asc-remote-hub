@@ -1,3 +1,47 @@
+## 2026-10-21 · Hub 1.2.3 / Agent and CLI 1.1.3
+
+- Added locally confirmed `unpair` and `uninstall` commands on Windows/Linux through the existing domain-specific `npx .../cli.tgz` installer.
+- Unpair now revokes precisely the current device's credential on the hub; uninstall also stops the dedicated service/task and removes owned local files. `--local-only` supports migration from an unavailable hub; `--dry-run` previews changes.
+- Added both copyable commands to the public hub website and new Windows tray menu items. The existing website Unpair action clearly states that it revokes server access only.
+- Tenant-bound `/agent/unpair` checks the device's bearer credentials, and tests cover cross-tenant revocation, local cleanup and degraded-network behavior.
+
+## Agent 1.1.2 — 2026-10-19
+
+- New lightweight ASC GUI Engine for isolated Win32 Desktops (no VM, additional OS, virtual monitor, or HID driver).
+- Seven MCP tools: gui_desktop_create, gui_desktop_sessions, gui_desktop_launch, gui_desktop_windows, gui_desktop_action, gui_desktop_capture, gui_desktop_close.
+- Launch via CreateProcessW lpDesktop, strict owned PID/HWND checks, standard Edit/Button control actions, PrintWindow capture.
+- Windows Job Object ensures hidden GUI process trees terminate on session close or agent crash. Max three Desktops per agent.
+- Normal user mouse/focus untouched in native Windows integration tests; unsupported graphics/game input remain explicitly unverified.
+- Tests and design notes: tests/test_isolated_desktop_tools.py, tests/test_isolated_desktop_windows.py and docs/ISOLATED_GUI.md.
+
+## Hub server 1.2.0 — 2026-10-15
+
+- Provider-neutral MCP OAuth dynamic client registration (RFC 7591).
+- Secure HTTPS callbacks for web applications and loopback HTTP callbacks with explicit ports for desktop applications.
+- PKCE S256, exact redirect matching, resource-bound tokens and multi-tenant isolation preserved.
+- Generic OAuth consent shows requested callback host and unverified client name.
+- OAuth applications dashboard with per-account token revocation.
+- Existing ChatGPT OAuth registrations/tokens migrated without invalidation.
+- Hub 1.2.0 is compatible with current agent and installer release 1.1.0.
+- Client ID Metadata Documents not yet supported; DCR remains enabled.
+
+## 1.1.0 — 2026-10-11
+
+- Four concurrent outbound-agent worker slots with separately serialized side effects and GUI actions; lease TTL suppresses late starts after server timeout.
+- Windows window_list, window_focus, window_screenshot, terminal_send with verified HWND/PID/foreground; tested with the real Codex Windows Terminal on Dekim-PC.
+- Batched read_files, stat_paths, bounded directory_tree, literal search_text within permitted roots.
+- Per-user latency metrics (queue_ms, agent_ms, relay_ms, total_ms) via /api/performance and MCP performance_stats; 7-day retention.
+- Persistent serialized SQLite connection; WAL/FULL durability for account credentials, pairing and revocation; WAL/NORMAL only for disposable heartbeat/performance/usage writes.
+- Full traffic tracing remains enabled when requested; large payloads compressed losslessly with SHA-256 integrity and decoding in error traces.
+- Agent UTF-8 with BOM support preserved; package 1.1.0 downloadable via stable /cli.tgz plus versioned fallback.
+- Backward-compatible agent protocol for previously installed 1.0.3/1.0.4 devices.
+
+### Not yet part of 1.1.0
+
+- Durable reconstruction of OS process handles after an agent restart (cannot be guaranteed solely from a PID).
+- Portable terminal_read for hidden ConPTY sessions; use window_screenshot and UI automation in this release.
+- Windows Job Objects for killing subprocess trees and blob-store deduplication beyond inline compression.
+
 # Changelog
 
 ## 1.0.3 — 2026-10-11

@@ -1,68 +1,45 @@
-<div align="center">
-  <img src="server/static/brand-mark.png" width="86" alt="ASC Remote Hub logo">
-
 # ASC Remote Hub
 
-**One self-hosted gateway. Your computers. Any compatible MCP client.**
+**Self-hosted, multi-user MCP gateway for ChatGPT, Cursor, OpenMausBot, and other MCP clients connected to your Windows/Linux computers.**
 
-Control your Windows and Linux machines from AI agents through infrastructure you own.
-No third-party desktop relay or vendor-specific MCP lock-in.
+Run commands, inspect and edit files, manage background processes, and (on an interactive Windows desktop) operate the screen from ChatGPT, through infrastructure you control — **without a paid Desktop Commander relay or an OpenAI Platform tunnel**.
 
-[**Get started**](#quick-start) · [**Connect an MCP client**](#connect-an-mcp-client) · [**Security**](#security) · [**Русский**](README.ru.md)
+[Русский README](README.ru.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security model](SECURITY.md) · [Safe Windows GUI](docs/WINDOWS_GUI.md) · [Isolated GUI Engine (no VM)](docs/ISOLATED_GUI.md)
 
-**Streamable HTTP MCP** · **OAuth / PKCE / DCR** · **Windows + Linux** · **[MIT](LICENSE)**
+> [!IMPORTANT]
+> ASC Remote Hub is an independent community project, not affiliated with OpenAI, ChatGPT, or Desktop Commander. It imposes **no per-tool-call quota**, but your ChatGPT plan and its MCP capabilities may still have limits. Server hosting, networking, and software dependencies are your responsibility.
 
-</div>
-
-> [!NOTE]
-> **Independent open-source project.** Not affiliated with OpenAI, Cursor, OpenMausBot, or Desktop Commander. Your MCP client may have its own usage limits; the Hub imposes no per-tool-call quota.
-
-## Overview
-
-ASC Remote Hub is a **multi-user Model Context Protocol (MCP) gateway** that connects AI assistants to computers you own or administer. It exposes a standard remote **Streamable HTTP** MCP endpoint, handles OAuth authorization, and forwards approved tool calls to lightweight Windows and Linux agents.
-
-The server is self-hosted with Docker and SQLite. Agents establish **outbound HTTPS connections** to the Hub, so you do not need to expose RDP, SSH, or an inbound agent port to the internet.
-
-### What you can do
-
-| Capability | Details |
-| --- | --- |
-| **Work with files** | List directories, read multiple files, inspect metadata, search content, create and modify files within configured roots. |
-| **Run commands** | Execute local programs, manage background jobs, collect bounded output, and check system information. |
-| **Control the desktop** | On an interactive Windows session, inspect windows, capture screenshots, focus a chosen window and send verified terminal input. |
-| **Use different AI clients** | Connect ChatGPT, Cursor, OpenMausBot, or another compatible MCP application using OAuth. |
-| **Keep users separate** | Per-account devices, OAuth tokens, permissions, activity counters, and error history. |
-| **Inspect performance** | Latency breakdown, diagnostics, and optional full traffic tracing. |
-
-## Architecture
+## How it works
 
 ```text
-   ChatGPT     Cursor     OpenMausBot     Other MCP clients
-      \          |           |               /
-       \_________|___________|______________/
-                         |
-              Streamable HTTP + OAuth
-                         |
-                  +----------------+
-                  | ASC Remote Hub |
-                  | Python + SQLite|
-                  | Per-user access|
-                  +----------------+
-                   ^              ^
-           outbound HTTPS    outbound HTTPS
-                   |              |
-             Windows agent    Linux agent
-             files / shell    files / shell
-             desktop UI       background jobs
+ChatGPT ── HTTPS + OAuth ──► Your ASC Remote Hub ── outbound HTTPS polling ──► Your Windows / Linux agents
+                                │
+                        SQLite (per-user data)
 ```
 
-The Hub checks the OAuth identity and device ownership before forwarding each call. Agents enforce their locally configured capabilities and file roots. No special ChatGPT transport or OpenAI-hosted relay is required.
+Agents initiate connections to your gateway, so they do not require inbound ports, publicly accessible desktop IPs, or third-party relays. A public HTTPS endpoint is required so ChatGPT can reach the gateway.
 
-## Quick start
+## Isolated Windows GUI Engine (agent 1.1.2)
 
-You need a Linux host with **Docker Compose**, a domain, and an HTTPS reverse proxy or the optional Caddy configuration.
+Create a separate native Win32 Desktop **without a VM or a second Windows installation**. Seven new `gui_desktop_*` MCP tools launch owned applications through CreateProcessW, enumerate their windows, target standard Edit/Button controls via Win32 messages, capture PrintWindow frames, and close the entire process tree with a kill-on-close Windows Job Object. The host user's mouse and foreground window are not used. This is **not a security sandbox** and hardware-accelerated games are not yet supported. [Implementation and test results (Russian)](docs/ISOLATED_GUI.md).
 
-**1. Clone and configure:**
+## Features
+
+- **One-command installation** from your own domain: `npx --yes https://YOUR_DOMAIN/cli.tgz`. Windows and Linux use the same `npx` command.
+- **Free registration** and account-separated devices, tokens and usage statistics.
+- **OAuth 2.1 authorization-code + PKCE** for the ChatGPT MCP connection; each token belongs to a specific account and MCP resource.
+- **File operations:** enumerate, search, read, create, replace exact text, inspect and move within permitted roots.
+- **Processes:** execute programs without an implicit shell; launch jobs, read bounded output and stop jobs.
+- **Safe Windows GUI (agent 1.1.1):** native UI Automation by HWND/PID and exact control; shared-desktop mouse/keyboard injection disabled by default.
+- **Per-account error history:** collapsible dashboard, device/tool filters, reason and timestamp.
+- **Server-rendered account pages:** signed-in HTML has no login form or login script, so refreshes do not flash authentication UI.
+- **Opt-in diagnostics:** full request/response tracing for all authenticated accounts when enabled, partitioned by user and device; disabled by default.
+- **Outbound-only agents**, heartbeat during long-running tasks, and an exclusive lock preventing duplicate agents using the same identity.
+- **No database server or paid external runtime dependencies:** stdlib Python, SQLite, Docker, optional reverse proxy.
+
+## Quick start: host your own server
+
+Requires a Linux server with Docker Compose, a domain you own and a valid HTTPS certificate.
 
 ```bash
 git clone https://github.com/tornado909/asc-remote-hub.git
@@ -70,9 +47,7 @@ cd asc-remote-hub
 cp .env.example .env
 ```
 
-Set at least these values in `.env` (replace `hub.example.com` with your own host):
-
-The canonical Hub origin is set with `ASC_HUB_URL`; installers and OAuth metadata follow this value.
+Edit `.env`:
 
 ```dotenv
 ASC_HUB_URL=https://hub.example.com
@@ -84,7 +59,9 @@ PGID=1000
 ASC_HUB_TRACE_PAYLOADS=0
 ```
 
-**2. Start the Hub:**
+When ASC_HUB_TRACE_PAYLOADS=1, full diagnostic tool traffic for every authenticated user is captured. When 0, no trace is written. Each user and device is kept in a separate private journal. Test users must be informed that command and file content is included; authentication headers and tokens are not captured.
+
+Create the persistent data directory and start the service:
 
 ```bash
 mkdir -p data
@@ -92,109 +69,57 @@ chmod 700 data
 docker compose up -d --build hub
 ```
 
-Proxy HTTPS traffic to `127.0.0.1:18765`, or use the optional bundled Caddy profile if ports 80/443 are available:
+Place it behind a trusted HTTPS reverse proxy forwarding to `127.0.0.1:18765`. Or use the optional Caddy profile when ports 80/443 are free:
 
 ```bash
 docker compose --profile public up -d --build
 ```
 
-**3. Open your Hub** at `https://hub.example.com`, create an account, and generate a one-time device pairing code.
-
-See [deployment and reverse-proxy instructions](docs/DEPLOYMENT.md) for a production setup.
+The `ASC_HUB_URL` value controls OAuth discovery, callback links, downloadable agent packages and the command displayed on your hub website. **No source-code editing is needed to change the domain.** See [deployment details](docs/DEPLOYMENT.md).
 
 ## Connect a computer
 
-Run the **same versionless installer command** on Windows PowerShell or Linux, substituting your own Hub domain:
-
-```shell
-npx --yes https://hub.example.com/cli.tgz
-```
-
-The CLI verifies the agent archive, asks for its access scope and pairing code, and configures autostart. Requires **Node.js 18+**, **Python 3.10+**, and `tar`. Node.js is only needed during installation.
+Open `https://hub.example.com`, create an account and click **Add device** to obtain a one-time pairing code. On the computer you want to connect, run the command displayed by that hub:
 
 | Operating system | Command |
 | --- | --- |
 | Windows (PowerShell) | `npx --yes https://hub.example.com/cli.tgz` |
-| Linux (shell) | `npx --yes https://hub.example.com/cli.tgz` |
+| Linux | `npx --yes https://hub.example.com/cli.tgz` |
 
-To inspect prerequisites without changing your computer:
+The CLI requires **Node.js 18+**, **Python 3.10+** and `tar`. Node.js is only used for installation; the running agent uses Python. It verifies the SHA-256 of the download, prompts for a one-time code, asks for the allowed folders and permissions and configures autostart.
 
-```shell
+Safe installation preview on a computer with no setup changes:
+
+```bash
 npx --yes https://hub.example.com/cli.tgz --dry-run
 ```
 
-- **Windows:** tray agent, autostart via Task Scheduler, optional interactive desktop control. Logs are under `%LOCALAPPDATA%\ASC-Remote-Hub\logs`.
-- **Linux:** systemd user service, or a system service when installed as root. Be especially careful with execution permissions on root-owned agents.
+**Windows:** The agent runs in the system tray, without an open terminal. Right-click the tray icon for **Open hub**, **Restart agent**, or **Exit**. Exit stops it until the next login or manual task launch; the existing device credential is retained. Agent stdout/stderr logs are stored in `%LOCALAPPDATA%\\ASC-Remote-Hub\\logs`.
 
-> [!CAUTION]
-> File-root restrictions apply to the Hub's built-in file tools. **Arbitrary programs run with the agent's OS privileges** when command execution is enabled. Start with read-only access and grant additional capabilities deliberately.
+**Linux:** Running the installer as an unprivileged user creates a systemd *user* unit. Running it directly as `root` creates a system-wide systemd service (`/etc/systemd/system/asc-remote-hub-agent.service`). **Full access under root lets remote commands run with root privileges; only choose this for machines you explicitly authorize.** No re-enrollment is needed for an existing valid device token.
 
-## Connect an MCP client
+By default only read-only file operations are allowed. Write access, command execution and (on Windows) GUI control require explicit selection. Do not enable full access on devices that hold sensitive workloads unless you understand the risks.
 
-The **same endpoint** works with supported remote Streamable HTTP MCP clients:
+## Add to ChatGPT
+
+In ChatGPT, add a custom MCP server with the address:
 
 ```text
 https://hub.example.com/mcp
 ```
 
-Sign in with your **ASC Remote Hub account** when the OAuth consent page opens. Authorization uses PKCE; dynamic registration accepts HTTPS callbacks for web applications and loopback callbacks for native apps. A client must support the relevant MCP/OAuth flow.
+Select OAuth and authorize access using **your own** hub account. The consent page is served by your hub. Feature availability depends on your ChatGPT plan and whether the client supports the required MCP tools.
 
-### Cursor
+## Privacy and security
 
-Add an entry to `mcpServers` in your existing Cursor `mcp.json`; **keep your other servers**:
+- User A cannot list or control user B's registered devices or view their log history.
+- Device credentials are unique; Windows secrets are encrypted for the local user using DPAPI, Linux files use permissions `0600`.
+- TLS is mandatory outside tests. Content/authentication tokens are not included in ordinary application logs.
+- Full payload tracing is **OFF by default**. When globally enabled via ASC_HUB_TRACE_PAYLOADS=1, it records traffic from every authenticated account, partitioned by user/device. It may include private file content and screenshots; protect it accordingly.
+- A server administrator with root access can technically inspect traffic and files on that server. This is **not end-to-end encrypted from the server operator**.
+- This is remote execution software. Deploy it only on devices you own or are authorized to administer; protect your OAuth accounts, server, DNS and TLS keys.
 
-```json
-{
-  "mcpServers": {
-    "asc-remote-hub": {
-      "url": "https://hub.example.com/mcp"
-    }
-  }
-}
-```
-
-Global configuration on Windows: `%USERPROFILE%\.cursor\mcp.json`. Follow Cursor's OAuth sign-in prompt. The JSON above is an example of the Hub entry, not an instruction to overwrite an existing configuration.
-
-### ChatGPT
-
-Add a custom MCP server with `https://hub.example.com/mcp`, then complete the Hub-hosted OAuth authorization.
-
-### OpenMausBot and other agents
-
-Choose a **remote Streamable HTTP MCP** server, enter `https://hub.example.com/mcp`, and complete OAuth sign-in. No provider-specific redirect allowlist is required. Exact UI steps vary between applications, and actual compatibility depends on the client's MCP implementation.
-
-> [!TIP]
-> In the web dashboard, **Authorized MCP applications** shows connections to your account. You can revoke an application's tokens without unregistering your devices or disconnecting other clients.
-
-## Security
-
-Security boundaries are enforced at multiple levels:
-
-- **OAuth authorization-code + PKCE S256**, resource-bound bearer/refresh tokens, and explicit user consent.
-- **Dynamic Client Registration** for secure HTTPS or local loopback redirect URIs. Redirects are matched exactly during authorization and token exchange.
-- **Per-user isolation** of device ownership and tokens; a client cannot operate devices from another account.
-- **Per-device permissions** (read, write, execution, GUI) and locally configured paths.
-- **Outbound HTTPS agent communication** with distinct device credentials. Windows protects local device secrets with user-scoped DPAPI.
-- **Optional traffic tracing.** When `ASC_HUB_TRACE_PAYLOADS=1` is configured, full traces are enabled for all authenticated accounts and may contain commands, file contents, and screenshots. Keep the storage private and apply retention controls.
-- **Not end-to-end encrypted against the Hub administrator.** Someone with administrator privileges on the server can inspect sensitive traffic.
-
-Only deploy to devices you own or have permission to administer. Read [SECURITY.md](SECURITY.md) before exposing remote execution capabilities.
-
-## Versions and limitations
-
-| Component | Current version |
-| --- | --- |
-| Hub server | **1.2.0** |
-| Windows / Linux agent | **1.1.0** |
-| Installer CLI | **1.1.0** |
-| MCP transport | Streamable HTTP |
-| Authentication | OAuth + PKCE + Dynamic Client Registration |
-
-The existing 1.1.0 agents do **not** need to be re-enrolled when updating the Hub server to 1.2.0.
-
-Current limitations: a single Hub process and in-memory task queues; background job handles may not survive agent restarts; GUI control needs an active Windows desktop; large file transfers are deliberately bounded. OAuth Client ID Metadata Documents are not yet advertised; use clients supporting dynamic registration.
-
-See [Architecture](docs/ARCHITECTURE.md), [Deployment](docs/DEPLOYMENT.md), and [Changelog](CHANGELOG.md).
+Read the complete [security policy and threat model](SECURITY.md).
 
 ## Development
 
@@ -206,8 +131,50 @@ node --check server/static/dashboard.js
 node --check server/installer_cli/connect.cjs
 ```
 
-Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report security vulnerabilities privately, following [SECURITY.md](SECURITY.md).
+Tests include tenant isolation, OAuth/PKCE, invalid-path handling, persistence of counters, trace privacy, cross-platform agent behavior, package generation for two different domains, and HTTP integration tests.
+
+## Current limitations
+
+A background process job ID belongs to the current agent runtime; jobs started before an agent restart cannot always be resumed via `read_process`. Long operations may be serialized per device. Native Windows GUI interaction requires an active user desktop session. File transfer tools are intentionally bounded; for large transfers, use an appropriate authenticated file-transfer channel.
+
+See [architecture and operational limits](docs/ARCHITECTURE.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Vulnerabilities should be reported privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT License](LICENSE). Self-hosted and open source.
+[MIT](LICENSE). Open source, self-hosted; no forced subscription or artificial tool-call ceiling.
+
+
+## Universal MCP OAuth (Hub server 1.2.0)
+
+Any compatible MCP client can connect at https://hub.example.com/mcp
+using Streamable HTTP and OAuth Dynamic Client Registration. The OAuth
+authorization code flow requires PKCE S256 and explicit user consent.
+
+For Cursor, merge asc-remote-hub with url=https://hub.example.com/mcp
+into the mcpServers object of your existing Cursor MCP JSON configuration.
+
+HTTPS redirect URIs are accepted for web clients. Native loopback HTTP
+redirects must use localhost/127.0.0.1/[::1] with an explicit port.
+
+Each authorized client has independent access/refresh tokens. Users can
+list and revoke connected MCP applications from the account dashboard.
+Existing ChatGPT connections remain valid. Hub server is v1.2.0; agent and
+CLI packages remain v1.1.1. CIMD is not currently advertised.
+
+
+## Unpairing and uninstalling an agent (1.1.3)
+
+Run the following commands **on the computer with the installed agent**, using the HTTPS address of your own hub:
+
+```bash
+npx --yes https://hub.example.com/cli.tgz unpair
+npx --yes https://hub.example.com/cli.tgz uninstall
+```
+
+`unpair` revokes this device's token on its current hub, stops its background service and removes local credentials while retaining the application files for re-enrollment on a different server. `uninstall` additionally removes the installed agent and its own user configuration and logs. Both operations require local confirmation; the Windows tray menu offers the same actions.
+
+If the old hub is unreachable, use `--local-only` to reset this machine without contacting it, then revoke the old device from the old hub separately. `--dry-run` previews the operation. The website's **Unpair** button revokes only the remote authorization and cannot remove local programs.
