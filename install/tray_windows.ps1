@@ -66,6 +66,14 @@ $RestartItem = $Menu.Items.Add('Перезапустить агент')
 $Menu.Items.Add('-') | Out-Null
 $UnpairItem = $Menu.Items.Add('Отвязать от хаба...')
 $UninstallItem = $Menu.Items.Add('Удалить ASC Remote Hub...')
+$GameMenu = New-Object System.Windows.Forms.ToolStripMenuItem('ASC Game Agent (canary)')
+[void]$Menu.Items.Add($GameMenu)
+$GameEnabledItem = New-Object System.Windows.Forms.ToolStripMenuItem('Включить Game Agent')
+$GameGpuTestItem = New-Object System.Windows.Forms.ToolStripMenuItem('Разрешить GPU-самотест')
+$GameCaptureItem = New-Object System.Windows.Forms.ToolStripMenuItem('Разрешить запрос захвата окна')
+[void]$GameMenu.DropDownItems.Add($GameEnabledItem)
+[void]$GameMenu.DropDownItems.Add($GameGpuTestItem)
+[void]$GameMenu.DropDownItems.Add($GameCaptureItem)
 $Menu.Items.Add('-') | Out-Null
 $ExitItem = $Menu.Items.Add('Выход')
 $script:Tray.ContextMenuStrip = $Menu
@@ -141,6 +149,77 @@ function Invoke-LocalLifecycle {
         [System.Windows.Forms.MessageBox]::Show('Не удалось открыть управление агентом: '+$_.Exception.Message)
     }
 }
+# Changes originate ONLY from a user clicking the local Windows tray.
+# The Python helper updates agent.json atomically without touching DPAPI keys.
+$script:GameSettings = Join-Path $PSScriptRoot 'game_agent_settings.py'
+function Refresh-GameAgentMenu {
+    try {
+        $json = & $Python $script:GameSettings status
+        if ($LASTEXITCODE -ne 0) { throw 'Game Agent local policy reader failed' }
+        $result = ([string]($json -join [Environment]::NewLine)) | ConvertFrom-Json
+        if ($result.ok -ne $true) { throw 'Invalid Game Agent local policy' }
+        $policy = $result.game_agent
+        $GameEnabledItem.Checked = $policy.enabled -eq $true
+        $GameGpuTestItem.Checked = $policy.gpu_test -eq $true
+        $GameCaptureItem.Checked = $policy.capture -eq $true
+        $GameGpuTestItem.Enabled = $GameEnabledItem.Checked
+        $GameCaptureItem.Enabled = $GameEnabledItem.Checked
+        $GameEnabledItem.Enabled = $true
+    } catch {
+        Write-TrayDiagnostic ('Game Agent settings unavailable: ' + $_.Exception.GetType().Name)
+        $GameEnabledItem.Enabled = $false
+        $GameGpuTestItem.Enabled = $false
+        $GameCaptureItem.Enabled = $false
+    }
+}
+function Set-GameAgentSetting {
+    param([ValidateSet('enabled','capture','gpu_test')][string]$Field,
+          [bool]$Value)
+    if ($Value) {
+        $message = switch ($Field) {
+            'enabled' { 'Включить экспериментальный ASC Game Agent? Он получит доступ к метаданным доступных окон. Захват изображений останется выключен.' }
+            'gpu_test' { 'Разрешить GPU-самотест временного окна, созданного самим Game Agent? RTX будет загружена только по отдельному запросу.' }
+            'capture' { 'Разрешить запросы на захват содержимого отдельных окон? Каждый реальный захват дополнительно требует на этом ПК ручного подтверждения в отдельном окне Windows.' }
+        }
+        $choice = [System.Windows.Forms.MessageBox]::Show(
+            $message,'ASC Game Agent',
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Warning,
+            [System.Windows.Forms.MessageBoxDefaultButton]::Button2)
+        if ($choice -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+    }
+    $valueText = if ($Value) { 'on' } else { 'off' }
+    # Stop the agent before changing the policy. A restarted agent always
+    # re-reads local rights; neither stale nor partially written JSON is used.
+    Stop-AgentWorker
+    try {
+        $messages = & $Python $script:GameSettings set $Field $valueText 2>&1
+        if ($LASTEXITCODE -ne 0) { throw 'Не удалось изменить локальные разрешения Game Agent' }
+        Refresh-GameAgentMenu
+        Write-TrayDiagnostic ('Game Agent local setting updated: '+$Field+' '+$valueText)
+    } catch {
+        Write-TrayDiagnostic ('Game Agent settings failed: '+$_.Exception.GetType().Name)
+        [System.Windows.Forms.MessageBox]::Show(
+            'Изменение Game Agent не выполнено. Проверьте права доступа и наличие GUI: '+$_.Exception.Message,
+            'ASC Game Agent') | Out-Null
+    } finally {
+        try { Start-AgentWorker } catch {
+            Write-TrayDiagnostic ('Cannot restart after Game Agent config: '+$_.Exception.GetType().Name)
+        }
+        Refresh-GameAgentMenu
+    }
+}
+$GameEnabledItem.add_Click({
+    Set-GameAgentSetting -Field 'enabled' -Value (-not $GameEnabledItem.Checked)
+})
+$GameGpuTestItem.add_Click({
+    Set-GameAgentSetting -Field 'gpu_test' -Value (-not $GameGpuTestItem.Checked)
+})
+$GameCaptureItem.add_Click({
+    Set-GameAgentSetting -Field 'capture' -Value (-not $GameCaptureItem.Checked)
+})
+Refresh-GameAgentMenu
+
 $UnpairItem.add_Click({ Invoke-LocalLifecycle 'unpair' })
 $UninstallItem.add_Click({ Invoke-LocalLifecycle 'uninstall' })
 $ExitItem.add_Click({

@@ -3,6 +3,7 @@
 - Optional locally gated Windows ASC Game Agent v18/v19 bridge: package diagnostics, target listing, preflight, consent-bound WGC/DirectML capture and own-window GPU test.
 - New structured asc.game_agent.vision_result.v1 metadata response. No native third-party runtime or model weights redistributed; explicit local opt-in, native local Yes consent and GPU-only processing enforced.
 - PowerShell 5.1 OEM-codepage fallback for Cyrillic titles; strict HWND/PID/process-start revalidation; negative consent, GPU and output-scope tests.
+- Added Windows tray policy controls with atomic local persistence, independent GPU/capture toggles and restart-on-update; legacy enrollments remain disabled.
 - Game-control actions, actual external-window consent acceptance and real-game FPS remain unverified.
 
 ## 2026-10-21 · Hub 1.2.3 / Agent and CLI 1.1.3

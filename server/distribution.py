@@ -32,6 +32,7 @@ ALLOWED_FILES = (
     "install/launch_tray_windows.vbs",
     "install/install_linux.sh",
     "install/manage_agent.py",
+    "install/game_agent_settings.py",
     "LICENSE",
 )
 PACKAGE_NAME = "asc-remote-hub-cli"

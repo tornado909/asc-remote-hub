@@ -29,6 +29,7 @@ Create a separate native Win32 Desktop **without a VM or a second Windows instal
 - **Free registration** and account-separated devices, tokens and usage statistics.
 - **OAuth 2.1 authorization-code + PKCE** for the ChatGPT MCP connection; each token belongs to a specific account and MCP resource.
 - **File operations:** enumerate, search, read, create, replace exact text, inspect and move within permitted roots.
+- **Optional ASC Game Agent (Windows):** local-tray-enabled v18/v19 target discovery and native-consented GPU-only WGC/DirectML capture; no autonomous game control. [Details](docs/GAME_AGENT.md).
 - **Processes:** execute programs without an implicit shell; launch jobs, read bounded output and stop jobs.
 - **Safe Windows GUI (agent 1.1.1):** native UI Automation by HWND/PID and exact control; shared-desktop mouse/keyboard injection disabled by default.
 - **Per-account error history:** collapsible dashboard, device/tool filters, reason and timestamp.

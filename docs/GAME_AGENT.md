@@ -9,23 +9,30 @@ This is an experimental Windows-only integration. It is **not a gaming autopilot
 
 ## Requirements and local opt-in
 
-1. Install trusted per-user packages **windows-targets-v18** and
-   **windows-consented-capture-v19** under the user's
-   %LOCALAPPDATA%\ASC-Game-Agent\extensions\ directory.
-2. Allow command execution and Windows GUI in the Remote Hub agent:
-   **ASC_RC_ALLOW_EXEC=1** and **ASC_RC_ALLOW_GUI=1**.
-3. Add the explicit local environment setting **ASC_RC_ALLOW_GAME_AGENT=1**
-   for the **Remote Hub agent process**, then restart that agent. It is off by
-   default. Changing an unrelated shell's environment does not enable it in
-   an already running background agent.
-4. To **allow capture to be requested**, separately set
-   **ASC_RC_ALLOW_GAME_AGENT_CAPTURE=1** in the same local agent environment.
-   It merely permits an OS consent prompt. It does **not** preapprove capture.
-5. To permit a **GPU-only test of a temporary window owned by the worker**,
-   optionally set **ASC_RC_ALLOW_GAME_AGENT_GPU_TEST=1**. The selftest never
-   reads pixels from another application.
+1. Install independently supplied, trusted Windows components
+   **windows-targets-v18** and **windows-consented-capture-v19** under
+   the current user's %LOCALAPPDATA%\ASC-Game-Agent\extensions directory.
+   These native packages are NOT redistributed by the public Hub installer.
+2. Pair the Windows Remote Hub agent with execution and GUI permissions.
+   Read-only agents cannot enable Game Agent.
+3. In the **local Windows tray** (right-click ASC Remote Hub), open
+   **ASC Game Agent (canary)** and choose **Включить Game Agent**.
+   The tray stops the worker, saves the option atomically to the current
+   user's ASC-Remote-Hub agent.json, then restarts the worker.
+4. **Разрешить GPU-самотест** enables a requested GPU test on a temporary
+   self-owned Win32 window. The GPU does not run continuously.
+5. **Разрешить запрос захвата окна** enables requests to show a separate
+   native Windows consent prompt. Every capture of another application
+   still requires an actual human **Yes** locally; it cannot be approved
+   by ChatGPT or another remote MCP client.
 
-Never enable these options for machines/users that have not explicitly agreed.
+All options are **OFF by default**, even if environment variables are
+inherited. Existing device enrollment, OAuth credentials and DPAPI secrets
+are preserved. Disabling Game Agent also clears the two GPU options.
+
+Full remote command execution is itself a powerful permission. The local
+Game Agent option is **not a security sandbox against a client already
+authorized to run arbitrary commands as the same Windows user**.
 
 ## Five MCP tools
 
@@ -67,7 +74,9 @@ real-scene acceptance tests are needed for that.
 
 ## Technical implementation
 
-- Python 3.10+ stdlib only in the Hub agent.
+- Python 3.10+ stdlib only in the Hub agent and local policy manager.
+- The local Windows tray controls enabled, capture and GPU-test permissions;
+  the Hub has no remote consent/enable endpoint.
 - Native v18/v19 invoked with fixed PowerShell **-File** arguments and
   subprocess shell disabled. No executable, model, PowerShell script or
   report path can be supplied remotely.

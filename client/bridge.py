@@ -200,6 +200,19 @@ def load_config(path: Path):
     for prop,env in (("write","ASC_RC_ALLOW_WRITE"),("exec","ASC_RC_ALLOW_EXEC"),
                      ("gui","ASC_RC_ALLOW_GUI"),("delete","ASC_RC_ALLOW_DELETE")):
         os.environ[env]="1" if permissions.get(prop,False) else "0"
+    game=conf.get("game_agent",{})
+    if not isinstance(game,dict) or any(
+            key not in ("enabled","capture","gpu_test") or type(val) is not bool
+            for key,val in game.items()):
+        raise ValueError("Invalid local Game Agent policy")
+    # Config wins over inherited environment to avoid accidental global
+    # opt-in and to keep old enrollments strictly disabled.
+    enabled=(os.name=="nt" and permissions.get("exec") is True
+             and permissions.get("gui") is True and game.get("enabled") is True)
+    for prop,env in (("enabled","ASC_RC_ALLOW_GAME_AGENT"),
+                     ("capture","ASC_RC_ALLOW_GAME_AGENT_CAPTURE"),
+                     ("gpu_test","ASC_RC_ALLOW_GAME_AGENT_GPU_TEST")):
+        os.environ[env]="1" if enabled and game.get(prop) is True else "0"
     os.environ["ASC_RC_STATE_DIR"]=str(path.parent/"audit")
     return conf,token,Agent()
 
