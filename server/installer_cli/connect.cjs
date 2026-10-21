@@ -12,7 +12,7 @@ const {once}=require('node:events');
 
 const ORIGIN='__HUB_ORIGIN__';
 const VERSION='1.1.3';
-const ARCHIVE='asc-remote-hub-agent-1.1.3.tar.gz';
+const ARCHIVE='asc-remote-hub-agent-1.1.4.tar.gz';
 const CHECKSUM='__ARCHIVE_SHA256__';
 const WIN=process.platform==='win32';
 const HOME=os.homedir();

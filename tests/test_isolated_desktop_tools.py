@@ -45,7 +45,7 @@ class IsolatedDesktopToolTests(unittest.TestCase):
 
     def test_tools_and_capability_annotations(self):
         self.assertTrue(NAMES.issubset(self.agent.tools))
-        self.assertEqual(module.VERSION,"1.1.2")
+        self.assertEqual(module.VERSION,"1.1.4")
         for name in NAMES:
             schema=self.agent.tools[name][0]["inputSchema"]
             self.assertFalse(schema["additionalProperties"])
