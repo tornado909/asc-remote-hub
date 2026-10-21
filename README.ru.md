@@ -4,7 +4,7 @@
 
 Позволяет работать с файлами, терминалом, процессами и, если имеется интерактивный рабочий стол, экраном удалённого компьютера. Трафик проходит через **ваш HTTPS-сервер**, без платного ретранслятора Desktop Commander и без OpenAI Platform Tunnel.
 
-[English README](README.md) · [Установка сервера](docs/DEPLOYMENT.md) · [Безопасность](SECURITY.md) · [GUI без вмешательства](docs/WINDOWS_GUI.ru.md) · [Изолированный GUI Engine без VM](docs/ISOLATED_GUI.md)
+[English README](README.md) · [Установка сервера](docs/DEPLOYMENT.md) · [Безопасность](SECURITY.md) · [GUI без вмешательства](docs/WINDOWS_GUI.ru.md) · [Изолированный GUI Engine без VM](docs/ISOLATED_GUI.md) · [Мост ASC Game Agent](docs/GAME_AGENT.md)
 
 > [!IMPORTANT]
 > Проект независимый, не связан с OpenAI или Desktop Commander. У хаба нет платных квот на команды; **ограничения ChatGPT** зависят от вашей подписки и поддержки пользовательских MCP-инструментов. Хостинг и домен вы оплачиваете или содержите самостоятельно.

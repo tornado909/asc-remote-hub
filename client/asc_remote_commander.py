@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-VERSION = "1.1.2"
+VERSION = "1.1.4"
 MAX_INPUT = 2_000_000
 MAX_TEXT = 100_000
 MAX_FILE_WRITE = 256_000
@@ -64,6 +64,9 @@ class Agent:
         self.allow_write = enabled("ASC_RC_ALLOW_WRITE")
         self.allow_exec = enabled("ASC_RC_ALLOW_EXEC")
         self.allow_gui = enabled("ASC_RC_ALLOW_GUI")
+        # A separate local opt-in for experimental, user-consented Game Agent.
+        self.allow_game_agent = enabled("ASC_RC_ALLOW_GAME_AGENT")
+        self._game_agent_backend = None
         # GUI capability does NOT imply permission to hijack the user's active
         # desktop. This flag must be set LOCALLY in the agent environment.
         self.allow_interactive_gui = enabled("ASC_RC_ALLOW_INTERACTIVE_GUI")
@@ -262,6 +265,33 @@ class Agent:
                               {"desktop_id":desktop_id},self.gui_desktop_close,
                               required=["desktop_id"],read_only=False,
                               destructive=True)
+                if self.allow_exec and self.allow_game_agent:
+                    # Optional research extension. Native v18/v19 are per-user,
+                    # installed independently, and never bundled in the Hub.
+                    target_identity={
+                        "hwnd":S("Exact handle returned by game_agent_targets"),
+                        "pid":num("Exact PID returned by game_agent_targets",1,4294967295),
+                        "process_start_ticks":num("Process creation FILETIME returned by game_agent_targets",1,9223372036854775807)
+                    }
+                    self._add("game_agent_status",
+                              "Verify installed ASC Game Agent v18/v19 manifests. No window scan, GPU use or capture.",
+                              {},self.game_agent_status)
+                    self._add("game_agent_targets",
+                              "List locally eligible user-session Win32 windows via ASC Game Agent v18. Metadata ONLY; never captures pixels.",
+                              {"limit":num("Maximum returned target windows",1,100)},self.game_agent_targets)
+                    self._add("game_agent_preflight",
+                              "Verify exact HWND, PID and process-start fingerprint with v18/v19 before asking for consent. No capture or GPU.",
+                              target_identity,self.game_agent_preflight,
+                              required=["hwnd","pid","process_start_ticks"])
+                    self._add("game_agent_capture",
+                              "Capture up to 32 frames from ONE selected HWND via GPU-only WGC->DirectML. Requires local ASC_RC_ALLOW_GAME_AGENT_CAPTURE=1 AND a native Windows YES click for this request. Cannot auto-approve, send input or save video. Returns COCO metadata only.",
+                              {**target_identity,"frames":num("2..32 frames",2,32)},
+                              self.game_agent_capture,required=["hwnd","pid","process_start_ticks"],
+                              read_only=False)
+                    self._add("game_agent_gpu_selftest",
+                              "On-demand WGC/DirectML test of a TEMPORARY window created by the native test worker. Needs local ASC_RC_ALLOW_GAME_AGENT_GPU_TEST=1. Never captures third-party windows.",
+                              {"frames":num("2..32 frames",2,32)},
+                              self.game_agent_gpu_selftest,read_only=False)
                 self._add("window_list", "Enumerate visible titled windows in the current Windows desktop (HWND, PID, bounds, foreground).",
                           {"limit":num("Max windows",1,100)},self.window_list)
                 self._add("window_focus", "INTERACTIVE fallback: forcibly foregrounds a verified window and can disturb the user. Requires explicit allow_desktop_interference=true. Prefer background window_action.",
@@ -767,6 +797,33 @@ class Agent:
                 "visible":bool(user32.IsWindowVisible(hwnd)),
                 "foreground":int(user32.GetForegroundWindow())==hwnd,
                 "rect":{"left":rect.left,"top":rect.top,"right":rect.right,"bottom":rect.bottom}}
+
+    def _game_agent(self):
+        self.require("exec")
+        self.require("gui")
+        if os.name != "nt" or not self.allow_game_agent:
+            raise AccessDenied("Game Agent requires Windows and local ASC_RC_ALLOW_GAME_AGENT=1")
+        if self._game_agent_backend is None:
+            from asc_game_agent import GameAgentBridge
+            self._game_agent_backend = GameAgentBridge()
+        return self._game_agent_backend
+
+    def game_agent_status(self,a:dict[str,Any])->dict[str,Any]:
+        return self._game_agent().status()
+
+    def game_agent_targets(self,a:dict[str,Any])->dict[str,Any]:
+        return self._game_agent().targets(checked_int(a.get("limit",50),1,100))
+
+    def game_agent_preflight(self,a:dict[str,Any])->dict[str,Any]:
+        return self._game_agent().preflight(a.get("hwnd"),a.get("pid"),a.get("process_start_ticks"))
+
+    def game_agent_capture(self,a:dict[str,Any])->dict[str,Any]:
+        return self._game_agent().capture(a.get("hwnd"),a.get("pid"),
+                                           a.get("process_start_ticks"),
+                                           checked_int(a.get("frames",12),2,32))
+
+    def game_agent_gpu_selftest(self,a:dict[str,Any])->dict[str,Any]:
+        return self._game_agent().fixture(checked_int(a.get("frames",8),2,32))
 
     def window_list(self,a:dict[str,Any])->dict[str,Any]:
         ctypes,wintypes,user32=self._windows()

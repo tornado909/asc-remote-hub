@@ -1676,5 +1676,211 @@
       "destructiveHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "game_agent_status",
+    "description": "Verify locally installed ASC Game Agent v18/v19 packages. No GPU, window enumeration or capture.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "game_agent_targets",
+    "description": "Read-only list of eligible Win32 game/application windows with stable process fingerprints.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum returned windows",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "game_agent_preflight",
+    "description": "Read-only Win32 HWND+PID+process creation preflight via v19; never requests consent or captures.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "string",
+          "description": "Exact HWND from game_agent_targets"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "Exact process PID from game_agent_targets",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "process_start_ticks": {
+          "type": "integer",
+          "description": "Process creation FILETIME from game_agent_targets",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        }
+      },
+      "required": [
+        "device",
+        "hwnd",
+        "pid",
+        "process_start_ticks"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "game_agent_capture",
+    "description": "One-time GPU-only WGC->DirectML from a selected window; requires local opt-in and NATIVE LOCAL consent dialog. Returns COCO metadata, not images. No input or recording.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "string",
+          "description": "Exact HWND from game_agent_targets"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "Exact process PID from game_agent_targets",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "process_start_ticks": {
+          "type": "integer",
+          "description": "Process creation FILETIME from game_agent_targets",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "frames": {
+          "type": "integer",
+          "description": "Frames 2..32",
+          "minimum": 2,
+          "maximum": 32
+        }
+      },
+      "required": [
+        "device",
+        "hwnd",
+        "pid",
+        "process_start_ticks"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "game_agent_gpu_selftest",
+    "description": "GPU-only WGC/DirectML test using a temporary self-owned window, no other apps; requires local opt-in.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "frames": {
+          "type": "integer",
+          "description": "Frames 2..32",
+          "minimum": 2,
+          "maximum": 32
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
   }
 ]
