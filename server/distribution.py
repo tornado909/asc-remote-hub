@@ -16,11 +16,12 @@ import re
 import tarfile
 import tempfile
 
-RELEASE = "1.1.3"
+RELEASE = "1.1.4"
 CLI = f"cli-{RELEASE}.tgz"
 AGENT = f"asc-remote-hub-agent-{RELEASE}.tar.gz"
 ALLOWED_FILES = (
     "client/asc_remote_commander.py",
+    "client/asc_game_agent.py",
     "client/asc_isolated_desktop.py",
     "client/windows_uia.ps1",
     "client/bridge.py",
@@ -31,6 +32,7 @@ ALLOWED_FILES = (
     "install/launch_tray_windows.vbs",
     "install/install_linux.sh",
     "install/manage_agent.py",
+    "install/game_agent_settings.py",
     "LICENSE",
 )
 PACKAGE_NAME = "asc-remote-hub-cli"

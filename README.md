@@ -4,7 +4,7 @@
 
 Run commands, inspect and edit files, manage background processes, and (on an interactive Windows desktop) operate the screen from ChatGPT, through infrastructure you control — **without a paid Desktop Commander relay or an OpenAI Platform tunnel**.
 
-[Русский README](README.ru.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security model](SECURITY.md) · [Safe Windows GUI](docs/WINDOWS_GUI.md) · [Isolated GUI Engine (no VM)](docs/ISOLATED_GUI.md)
+[Русский README](README.ru.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security model](SECURITY.md) · [Safe Windows GUI](docs/WINDOWS_GUI.md) · [Isolated GUI Engine (no VM)](docs/ISOLATED_GUI.md) · [Optional Game Agent bridge](docs/GAME_AGENT.md)
 
 > [!IMPORTANT]
 > ASC Remote Hub is an independent community project, not affiliated with OpenAI, ChatGPT, or Desktop Commander. It imposes **no per-tool-call quota**, but your ChatGPT plan and its MCP capabilities may still have limits. Server hosting, networking, and software dependencies are your responsibility.
@@ -29,6 +29,7 @@ Create a separate native Win32 Desktop **without a VM or a second Windows instal
 - **Free registration** and account-separated devices, tokens and usage statistics.
 - **OAuth 2.1 authorization-code + PKCE** for the ChatGPT MCP connection; each token belongs to a specific account and MCP resource.
 - **File operations:** enumerate, search, read, create, replace exact text, inspect and move within permitted roots.
+- **Optional ASC Game Agent (Windows):** local-tray-enabled v18/v19 target discovery and native-consented GPU-only WGC/DirectML capture; no autonomous game control. [Details](docs/GAME_AGENT.md).
 - **Processes:** execute programs without an implicit shell; launch jobs, read bounded output and stop jobs.
 - **Safe Windows GUI (agent 1.1.1):** native UI Automation by HWND/PID and exact control; shared-desktop mouse/keyboard injection disabled by default.
 - **Per-account error history:** collapsible dashboard, device/tool filters, reason and timestamp.

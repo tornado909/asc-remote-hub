@@ -15,7 +15,7 @@ from urllib.request import urlopen
 HERE=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(HERE/"server"))
 from hub import Hub,Handler
-from distribution import CLI,AGENT,ALLOWED_FILES,build_distributions
+from distribution import CLI,AGENT,RELEASE,ALLOWED_FILES,build_distributions
 
 class Tags(HTMLParser):
     def __init__(self):
@@ -82,6 +82,27 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertIn("location.origin+" + chr(39) + "/cli.tgz" + chr(39), js)
         self.assertIn("copyInstallValue",js)
         self.assertNotIn("private-deployment.example.invalid",js)
+
+    def test_latest_cli_alias_reports_current_release_and_bundles_game_agent(self):
+        import json
+        self.assertEqual(CLI,"cli-"+RELEASE+".tgz")
+        with urlopen(self.url+"/cli.tgz",timeout=8) as response:
+            latest=response.read()
+        with urlopen(self.url+"/"+CLI,timeout=8) as response:
+            explicit=response.read()
+        self.assertEqual(latest,explicit)
+        with tarfile.open(fileobj=io.BytesIO(latest),mode="r:gz") as tar:
+            info=json.loads(tar.extractfile("package/package.json").read())
+            cli=tar.extractfile("package/bin/connect.cjs").read().decode("utf8")
+            self.assertEqual(info["version"],RELEASE)
+            self.assertIn("const VERSION='"+RELEASE+"';",cli)
+            self.assertIn("const ARCHIVE='"+AGENT+"';",cli)
+            bundled=tar.extractfile("package/assets/"+AGENT).read()
+        with tarfile.open(fileobj=io.BytesIO(bundled),mode="r:gz") as tar:
+            files=tar.getnames()
+            self.assertIn("asc-remote-hub/client/asc_game_agent.py",files)
+            self.assertIn("asc-remote-hub/install/game_agent_settings.py",files)
+            self.assertFalse(any(x.lower().endswith((".exe",".dll",".onnx")) for x in files))
 
     def test_same_release_multiple_domains_produce_distinct_clis(self):
         with tempfile.TemporaryDirectory() as a,tempfile.TemporaryDirectory() as b:
