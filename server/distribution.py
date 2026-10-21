@@ -22,6 +22,8 @@ AGENT = f"asc-remote-hub-agent-{RELEASE}.tar.gz"
 ALLOWED_FILES = (
     "client/asc_remote_commander.py",
     "client/asc_game_agent.py",
+    "client/asc_game_agent_scene.py",
+    "client/asc_game_agent_open_vocab.py",
     "client/asc_isolated_desktop.py",
     "client/windows_uia.ps1",
     "client/bridge.py",

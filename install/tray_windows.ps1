@@ -71,9 +71,11 @@ $GameMenu = New-Object System.Windows.Forms.ToolStripMenuItem('ASC Game Agent (c
 $GameEnabledItem = New-Object System.Windows.Forms.ToolStripMenuItem('Включить Game Agent')
 $GameGpuTestItem = New-Object System.Windows.Forms.ToolStripMenuItem('Разрешить GPU-самотест')
 $GameCaptureItem = New-Object System.Windows.Forms.ToolStripMenuItem('Разрешить запрос захвата окна')
+$GameOpenVocabItem = New-Object System.Windows.Forms.ToolStripMenuItem('Разрешить Universal Vision v22 (эксперимент)')
 [void]$GameMenu.DropDownItems.Add($GameEnabledItem)
 [void]$GameMenu.DropDownItems.Add($GameGpuTestItem)
 [void]$GameMenu.DropDownItems.Add($GameCaptureItem)
+[void]$GameMenu.DropDownItems.Add($GameOpenVocabItem)
 $Menu.Items.Add('-') | Out-Null
 $ExitItem = $Menu.Items.Add('Выход')
 $script:Tray.ContextMenuStrip = $Menu
@@ -162,6 +164,8 @@ function Refresh-GameAgentMenu {
         $GameEnabledItem.Checked = $policy.enabled -eq $true
         $GameGpuTestItem.Checked = $policy.gpu_test -eq $true
         $GameCaptureItem.Checked = $policy.capture -eq $true
+        $GameOpenVocabItem.Checked = $policy.open_vocab -eq $true
+        $GameOpenVocabItem.Enabled = $GameEnabledItem.Checked -and $GameCaptureItem.Checked
         $GameGpuTestItem.Enabled = $GameEnabledItem.Checked
         $GameCaptureItem.Enabled = $GameEnabledItem.Checked
         $GameEnabledItem.Enabled = $true
@@ -170,16 +174,18 @@ function Refresh-GameAgentMenu {
         $GameEnabledItem.Enabled = $false
         $GameGpuTestItem.Enabled = $false
         $GameCaptureItem.Enabled = $false
+        $GameOpenVocabItem.Enabled = $false
     }
 }
 function Set-GameAgentSetting {
-    param([ValidateSet('enabled','capture','gpu_test')][string]$Field,
+    param([ValidateSet('enabled','capture','gpu_test','open_vocab')][string]$Field,
           [bool]$Value)
     if ($Value) {
         $message = switch ($Field) {
             'enabled' { 'Включить экспериментальный ASC Game Agent? Он получит доступ к метаданным доступных окон. Захват изображений останется выключен.' }
             'gpu_test' { 'Разрешить GPU-самотест временного окна, созданного самим Game Agent? RTX будет загружена только по отдельному запросу.' }
             'capture' { 'Разрешить запросы на захват содержимого отдельных окон? Каждый реальный захват дополнительно требует на этом ПК ручного подтверждения в отдельном окне Windows.' }
+            'open_vocab' { 'Разрешить отдельный экспериментальный GPU Vision v22 (YOLO-World) для неизвестных игр и приложений? Требуются уже разрешённый захват и установленный проверенный локальный runtime. Для чужого окна по-прежнему необходимо подтвердить каждый запрос вручную.' }
         }
         $choice = [System.Windows.Forms.MessageBox]::Show(
             $message,'ASC Game Agent',
@@ -217,6 +223,9 @@ $GameGpuTestItem.add_Click({
 })
 $GameCaptureItem.add_Click({
     Set-GameAgentSetting -Field 'capture' -Value (-not $GameCaptureItem.Checked)
+})
+$GameOpenVocabItem.add_Click({
+    Set-GameAgentSetting -Field 'open_vocab' -Value (-not $GameOpenVocabItem.Checked)
 })
 Refresh-GameAgentMenu
 
