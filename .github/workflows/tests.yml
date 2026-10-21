@@ -42,6 +42,13 @@ jobs:
         run: gitleaks dir --no-banner --redact=100 --exit-code 1 .
       - name: Python unit and HTTP integration tests
         run: python3 -m unittest discover -s tests -q
+      - name: Docker image runs as an unprivileged user
+        run: |
+          docker build -t asc-hub-ci-nonroot .
+          docker run --rm --user 1000:1000 --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --entrypoint python3 asc-hub-ci-nonroot -c \
+            "import sys;sys.path.insert(0,'/srv/app/server');from hub import Hub;h=Hub(base_url='https://hub.example.net',data_dir='/tmp/asc-ci');assert h.oauth_metadata()['issuer']=='https://hub.example.net'; print('NONROOT_HUB_INIT_OK')"
       - name: Node.js syntax
         run: |
           node --check server/static/common.js
