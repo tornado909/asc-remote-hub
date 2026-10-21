@@ -4,7 +4,7 @@
 
 Run commands, inspect and edit files, manage background processes, and (on an interactive Windows desktop) operate the screen from ChatGPT, through infrastructure you control — **without a paid Desktop Commander relay or an OpenAI Platform tunnel**.
 
-[Русский README](README.ru.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security model](SECURITY.md) · [Safe Windows GUI](docs/WINDOWS_GUI.md) · [Isolated GUI Engine (no VM)](docs/ISOLATED_GUI.md) · [Optional Game Agent bridge](docs/GAME_AGENT.md)
+[Русский README](README.ru.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security model](SECURITY.md) · [Safe Windows GUI](docs/WINDOWS_GUI.md) · [Isolated GUI Engine (no VM)](docs/ISOLATED_GUI.md) · [Optional Game Agent bridge](docs/GAME_AGENT.md) · [Universal Vision contract](docs/GAME_AGENT_UNIVERSAL.md)
 
 > [!IMPORTANT]
 > ASC Remote Hub is an independent community project, not affiliated with OpenAI, ChatGPT, or Desktop Commander. It imposes **no per-tool-call quota**, but your ChatGPT plan and its MCP capabilities may still have limits. Server hosting, networking, and software dependencies are your responsibility.

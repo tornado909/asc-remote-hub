@@ -100,6 +100,12 @@ class GameAgentBridgeTests(unittest.TestCase):
         self.assertTrue(status["available"])
         self.assertFalse(status["gpu_initialized"])
         self.assertFalse(status["input_sent"])
+        self.assertFalse(status["perception"]["semantic_provider_ready"])
+        self.assertFalse(status["perception"]["open_vocabulary"])
+        self.assertFalse(status["perception"]["ocr"])
+        self.assertTrue(status["perception"]["diagnostic_only"])
+        self.assertEqual(status["perception"]["universal_scene_schema"],
+                         "asc.game_agent.scene.v1")
         self.assertEqual([x[0][x[0].index("-Action")+1] for x in self.worker.calls],
                          ["Doctor","Doctor"])
 
@@ -137,6 +143,7 @@ class GameAgentBridgeTests(unittest.TestCase):
         self.assertEqual(len(result["frames"]),2)
         self.assertEqual(result["frames"][0]["taxonomy"],"COCO80")
         self.assertFalse(result["game_semantics_available"])
+        self.assertTrue(result["diagnostic_only"])
         self.assertEqual(result["full_frames_to_cpu_bytes"],0)
         self.assertNotIn("test_pixel_rgba",str(result))
         self.assertNotIn("untrusted_raw",str(result))

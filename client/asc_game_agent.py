@@ -135,6 +135,12 @@ class GameAgentBridge:
             except GameAgentError as exc:
                 components[name] = {"installed": False, "verified": False, "reason": str(exc)}
         return {"available": all(x["verified"] for x in components.values()),
+                "perception": {"universal_scene_schema": "asc.game_agent.scene.v1",
+                               "semantic_provider_ready": False,
+                               "open_vocabulary": False,
+                               "ocr": False,
+                               "ui_grounding": False,
+                               "diagnostic_only": True},
                 "backend": "Win32 target fingerprint + user-consented WGC/DirectML",
                 "research_only": True, "capture_requires_native_local_yes": True,
                 "gpu_initialized": False, "input_sent": False, "components": components}
@@ -228,6 +234,7 @@ class GameAgentBridge:
             "processed_fps": report.get("processed_fps"),
             "capture_scope": expected_scope, "consent_origin": expected_consent,
             "model": "YOLO11n-COCO80", "game_semantics_available": False,
+            "diagnostic_only": True,
             "full_frames_to_cpu_bytes": 0, "gpu_only": True,
             "input_sent": False, "persistent_grant": False,
             "frames": vision,

@@ -1,5 +1,7 @@
 # ASC Game Agent: optional Windows GPU bridge (research canary)
 
+**Universal game-independent scene architecture:** [Universal Perception Core v21](GAME_AGENT_UNIVERSAL.md). The current YOLO person/bus values are only diagnostic; no arbitrary game-object understanding is implemented.
+
 The public ASC Remote Hub **does not include games, DirectML DLLs, ONNX Runtime,
 YOLO weights or native ASC Game Agent binaries**. This bridge connects to
 independently installed, locally trusted and manifest-verified **v18 Window
