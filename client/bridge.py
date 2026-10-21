@@ -202,7 +202,7 @@ def load_config(path: Path):
         os.environ[env]="1" if permissions.get(prop,False) else "0"
     game=conf.get("game_agent",{})
     if not isinstance(game,dict) or any(
-            key not in ("enabled","capture","gpu_test") or type(val) is not bool
+            key not in ("enabled","capture","gpu_test","open_vocab") or type(val) is not bool
             for key,val in game.items()):
         raise ValueError("Invalid local Game Agent policy")
     # Config wins over inherited environment to avoid accidental global
@@ -211,8 +211,12 @@ def load_config(path: Path):
              and permissions.get("gui") is True and game.get("enabled") is True)
     for prop,env in (("enabled","ASC_RC_ALLOW_GAME_AGENT"),
                      ("capture","ASC_RC_ALLOW_GAME_AGENT_CAPTURE"),
-                     ("gpu_test","ASC_RC_ALLOW_GAME_AGENT_GPU_TEST")):
-        os.environ[env]="1" if enabled and game.get(prop) is True else "0"
+                     ("gpu_test","ASC_RC_ALLOW_GAME_AGENT_GPU_TEST"),
+                     ("open_vocab","ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB")):
+        allowed=enabled and game.get(prop) is True
+        if prop=="open_vocab":
+            allowed=allowed and game.get("capture") is True
+        os.environ[env]="1" if allowed else "0"
     os.environ["ASC_RC_STATE_DIR"]=str(path.parent/"audit")
     return conf,token,Agent()
 

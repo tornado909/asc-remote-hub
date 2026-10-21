@@ -34,9 +34,9 @@ class GameAgentLocalSettingsTests(unittest.TestCase):
     def test_old_install_default_off_and_respects_external_policy(self):
         cfg = settings.read_config(self.path)
         self.assertEqual(settings.effective_policy(cfg),
-                         {"enabled":False,"capture":False,"gpu_test":False})
+                         {"enabled":False,"capture":False,"gpu_test":False,"open_vocab":False})
         self.assertEqual(cfg["arbitrary_legacy_option"],"preserved")
-        for flag in ("enabled","capture","gpu_test"):
+        for flag in ("enabled","capture","gpu_test","open_vocab"):
             self.assertFalse(settings.policy_of(cfg)[flag])
 
     def test_enable_capture_selftest_and_reset_cascade(self):
@@ -46,21 +46,37 @@ class GameAgentLocalSettingsTests(unittest.TestCase):
         cfg = settings.update_policy(cfg,"enabled",True)
         cfg = settings.update_policy(cfg,"capture",True)
         cfg = settings.update_policy(cfg,"gpu_test",True)
+        cfg = settings.update_policy(cfg,"open_vocab",True)
         self.assertTrue(all(settings.effective_policy(cfg).values()))
         settings.write_config(self.path,cfg)
         reread = settings.read_config(self.path)
         self.assertTrue(all(settings.effective_policy(reread).values()))
         reread = settings.update_policy(reread,"enabled",False)
         self.assertEqual(settings.effective_policy(reread),
-                         {"enabled":False,"capture":False,"gpu_test":False})
+                         {"enabled":False,"capture":False,"gpu_test":False,"open_vocab":False})
         self.assertEqual(reread["game_agent"],settings.effective_policy(reread))
+
+    def test_open_vocabulary_never_outlives_local_capture_permission(self):
+        cfg=settings.update_policy(self.original,"enabled",True)
+        with self.assertRaisesRegex(RuntimeError,"locally consented capture"):
+            settings.update_policy(cfg,"open_vocab",True)
+        cfg=settings.update_policy(cfg,"capture",True)
+        cfg=settings.update_policy(cfg,"open_vocab",True)
+        self.assertTrue(settings.effective_policy(cfg)["open_vocab"])
+        no_capture=settings.update_policy(cfg,"capture",False)
+        self.assertFalse(settings.effective_policy(no_capture)["open_vocab"])
+        self.assertFalse(no_capture["game_agent"]["open_vocab"])
+        # Even malformed manually edited configs fail closed in load_config.
+        tampered=dict(cfg,game_agent=dict(cfg["game_agent"],
+                                         capture=False,open_vocab=True))
+        self.assertFalse(settings.effective_policy(tampered)["open_vocab"])
 
     def test_missing_permissions_refuse_without_changes(self):
         original_bytes=self.path.read_bytes()
         for permission in ("gui","exec"):
             bad=dict(settings.read_config(self.path))
             bad["permissions"]=dict(bad["permissions"], **{permission: False})
-            for flag in ("enabled","capture","gpu_test"):
+            for flag in ("enabled","capture","gpu_test","open_vocab"):
                 with self.subTest(permission=permission,flag=flag):
                     with self.assertRaisesRegex(RuntimeError,"local GUI and execution"):
                         settings.update_policy(bad,flag,True)
@@ -107,6 +123,7 @@ class GameAgentLocalSettingsTests(unittest.TestCase):
             "ASC_RC_ALLOW_GAME_AGENT":"1",
             "ASC_RC_ALLOW_GAME_AGENT_CAPTURE":"1",
             "ASC_RC_ALLOW_GAME_AGENT_GPU_TEST":"1",
+            "ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB":"1",
             "ASC_RC_ALLOW_GUI":"1","ASC_RC_ALLOW_EXEC":"1"
         }):
             _conf,_token,agent=bridge.load_config(self.path)
@@ -115,6 +132,7 @@ class GameAgentLocalSettingsTests(unittest.TestCase):
             self.assertEqual(os.environ["ASC_RC_ALLOW_GAME_AGENT"],"0")
             self.assertEqual(os.environ["ASC_RC_ALLOW_GAME_AGENT_CAPTURE"],"0")
             self.assertEqual(os.environ["ASC_RC_ALLOW_GAME_AGENT_GPU_TEST"],"0")
+            self.assertEqual(os.environ["ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB"],"0")
             self.assertNotIn("game_agent_status",agent.tools)
 
     def test_public_package_and_tray_are_wired(self):
@@ -123,6 +141,7 @@ class GameAgentLocalSettingsTests(unittest.TestCase):
         tray=(ROOT/"install/tray_windows.ps1").read_text("utf-8-sig")
         for marker in ("game_agent_settings.py","Включить Game Agent",
                        "Разрешить GPU-самотест","Разрешить запрос захвата окна",
+                       "Разрешить Universal Vision v22",
                        "Stop-AgentWorker","Start-AgentWorker"):
             self.assertIn(marker,tray)
 

@@ -36,9 +36,11 @@ def _hwnd(value: object) -> str:
 class GameAgentBridge:
     TARGETS = "windows-targets-v18"
     CAPTURE = "windows-consented-capture-v19"
+    OPEN_VOCAB = "windows-universal-vision-v22-runtime"
     SCRIPTS = {
         TARGETS: "Run-WindowTargets.ps1",
         CAPTURE: "Run-ConsentedCapture.ps1",
+        OPEN_VOCAB: "Run-UniversalVision.ps1",
     }
 
     def __init__(self, root: Path | None = None, *,
@@ -134,10 +136,29 @@ class GameAgentBridge:
                 components[name] = {"installed": True, "verified": True, "version": data.get("version")}
             except GameAgentError as exc:
                 components[name] = {"installed": False, "verified": False, "reason": str(exc)}
-        return {"available": all(x["verified"] for x in components.values()),
+        v22_ready = False
+        if os.environ.get("ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB", "").lower() in (
+                "1", "true", "yes", "on"):
+            try:
+                state = self._call(self.OPEN_VOCAB, "Doctor", timeout=35)
+                if (state.get("code") != "ASC_V22_PRIVATE_CANARY_VERIFIED" or
+                        state.get("version") != "22-private" or
+                        state.get("gpu_initialized") is not False or
+                        state.get("captured") is not False or
+                        state.get("input_sent") is not False):
+                    raise GameAgentError("GAME_AGENT_V22_DOCTOR_VIOLATION")
+                v22_ready = True
+                components["open_vocabulary_v22"] = {
+                    "installed": True, "verified": True, "version": "22-private"}
+            except GameAgentError as exc:
+                components["open_vocabulary_v22"] = {
+                    "installed": False, "verified": False, "reason": str(exc)}
+        return {"available": all(components[k]["verified"]
+                                 for k in ("windows_v18", "capture_v19")),
                 "perception": {"universal_scene_schema": "asc.game_agent.scene.v1",
                                "semantic_provider_ready": False,
-                               "open_vocabulary": False,
+                               "open_vocabulary": v22_ready,
+                               "open_vocabulary_canary_ready": v22_ready,
                                "ocr": False,
                                "ui_grounding": False,
                                "diagnostic_only": True},
@@ -263,3 +284,68 @@ class GameAgentBridge:
         report = self._call(self.CAPTURE, "Fixture",
                             ["-Frames", str(frames)], timeout=46)
         return self._vision_result(report, expected_frames=frames, external=False)
+
+    def open_vocab(self, hwnd: object, pid: object, ticks: object,
+                   frames: int = 4, threshold: float = 0.25) -> dict[str, Any]:
+        """Experimental game-agnostic GPU detections after physical local YES.
+
+        This does not accept remote-supplied model paths, embeddings, labels,
+        executables or consent flags. Both local capture and v22 opt-in must
+        already be enabled in the Windows tray; the native v22 wrapper
+        verifies its independently installed per-user runtime.
+        """
+        enabled = ("1", "true", "yes", "on")
+        if (os.environ.get("ASC_RC_ALLOW_GAME_AGENT_CAPTURE", "").lower() not in enabled or
+                os.environ.get("ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB", "").lower() not in enabled):
+            raise GameAgentError("GAME_AGENT_V22_LOCALLY_DISABLED")
+        frames = _int(frames, 2, 12, "frames")
+        if (isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or
+                not 0.01 <= threshold <= 1.0):
+            raise ValueError("threshold must be within 0.01..1.0")
+        handle, process, started = self._chosen(hwnd, pid, ticks)
+        # v18/v19 read-only preflight before the private v22 local dialog.
+        self.preflight(handle, process, started)
+        package = self.OPEN_VOCAB
+        report = self._call(
+            package, "Capture",
+            ["-Hwnd", handle, "-ProcessId", str(process),
+             "-ProcessStartTicks", str(started), "-Frames", str(frames)],
+            timeout=50,
+        )
+        try:
+            _int(report.get("frames_processed"), 1, frames, "frames_processed")
+        except ValueError as exc:
+            raise GameAgentError("GAME_AGENT_V22_UNEXPECTED_FRAME_COUNT") from exc
+        directory = self.root / "extensions" / package / "models"
+        metadata_file = directory / "yoloworld_clip8_features.json"
+        binary_file = directory / "yoloworld_clip8_features.bin"
+        if (not metadata_file.is_file() or not binary_file.is_file() or
+                metadata_file.is_symlink() or binary_file.is_symlink()):
+            raise GameAgentError("GAME_AGENT_V22_TEXT_FEATURES_UNAVAILABLE")
+        try:
+            import hashlib
+            metadata = json.loads(metadata_file.read_text(encoding="utf8"))
+            digest = hashlib.sha256(binary_file.read_bytes()).hexdigest()
+            if (not isinstance(metadata, dict) or
+                    metadata.get("sha256") != digest or
+                    binary_file.stat().st_size != 8 * 512 * 4 or
+                    metadata.get("tensor_shape") != [1, 8, 512] or
+                    metadata.get("model") != "openai/clip-vit-base-patch32"):
+                raise ValueError("invalid prompt features")
+            from asc_game_agent_open_vocab import convert_v22_report
+            result = convert_v22_report(
+                report, prompts=metadata["prompts"],
+                source_id="hwnd:" + handle,
+                source_generation="win32-start:" + str(started),
+                external=True, expected_pid=process,
+                expected_hwnd=handle, expected_start_ticks=started,
+                threshold=float(threshold),
+            )
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+            # Do not return the native report or private file paths on error.
+            raise GameAgentError("GAME_AGENT_V22_UNTRUSTED_METADATA") from exc
+        result["ok"] = True
+        result["research_only"] = True
+        result["game_semantics_verified"] = False
+        result["capture_scope"] = "user_selected_window"
+        return result

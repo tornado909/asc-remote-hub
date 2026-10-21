@@ -1,6 +1,6 @@
 # ASC Game Agent: optional Windows GPU bridge (research canary)
 
-**Universal game-independent scene architecture:** [Universal Perception Core v21](GAME_AGENT_UNIVERSAL.md). The current YOLO person/bus values are only diagnostic; no arbitrary game-object understanding is implemented.
+**Universal game-independent scene architecture:** [Universal Perception Core v21](GAME_AGENT_UNIVERSAL.md) and [isolated YOLO-World v22 research canary](GAME_AGENT_V22.md). Production v19 remains COCO person/bus diagnostic-only. Neither VLM/OCR nor autonomous game control has been added.
 
 The public ASC Remote Hub **does not include games, DirectML DLLs, ONNX Runtime,
 YOLO weights or native ASC Game Agent binaries**. This bridge connects to
@@ -45,6 +45,7 @@ authorized to run arbitrary commands as the same Windows user**.
 | **game_agent_preflight** | Rechecks exact target identity; invokes v19 read-only fingerprint validation. |
 | **game_agent_capture** | Requests 2–32 frames of ONE selected window; returns GPU-computed COCO confidence metadata after **native local YES** consent. |
 | **game_agent_gpu_selftest** | Runs 2–32 frames on the worker's own temporary Win32 fixture; requires separate opt-in. |
+| **game_agent_open_vocab** *(unreleased v22 research)* | Optional 2–12 frame open-vocabulary metadata on a separately installed private GPU runtime. Requires distinct local Universal Vision permission, existing capture permission, exact HWND/PID/start and physical native consent. No OCR, VLM, screenshot output or game actions. |
 
 All tools are scoped to the authenticated user's own paired device. Capture
 is **not** annotated read-only, despite never sending physical input, because

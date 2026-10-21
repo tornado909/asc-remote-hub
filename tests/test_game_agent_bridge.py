@@ -1,4 +1,5 @@
 """ASC Game Agent bridge safety contract; no Windows/GPU needed for CI."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -47,6 +48,38 @@ def report(scope="user_selected_window", frames=2):
             "untrusted_raw": "never publish full worker payload"}
 
 
+def v22_report():
+    detections=[{"prompt_index":i,"score":0.001,"anchor":i,
+                 "box_model_normalized":[.1,.2,.3,.4]}
+                for i in range(8)]
+    detections[0]["score"]=.75
+    return {
+        "ok":True,"code":"WINDOW_CAPTURE_SESSION_COMPLETED",
+        "version":"22-open-vocabulary-canary",
+        "mode":"consented_selected_window_WGC_DirectML_OpenVocab",
+        "semantic_provider":"YOLO-World-v2","open_vocabulary":True,
+        "runtime_text_embedding_classes":8,
+        "capture_target":"user_selected_window","consent_origin":"native_local_dialog",
+        "capture_authorized_during_session":True,
+        "identity_checked_per_frame":True,"grant_persisted":False,
+        "grant_valid_after_exit":False,"gpu_only":True,
+        "cpu_fallback_disabled":True,"screen_recording_saved":False,
+        "game_started":False,"host_input_sent":False,
+        "full_frames_to_cpu_bytes":0,"tensor_to_cpu_bytes":0,
+        "logits_to_cpu_bytes":0,"text_embedding_cpu_upload_bytes":16384,
+        "model_sessions_created":1,"max_frames_in_flight":1,
+        "metadata_to_cpu_bytes":512,"diagnostic_pixels_to_cpu_bytes":0,
+        "wgc_input_last_width":1280,"wgc_input_last_height":720,
+        "gpu_tensor_width":1280,"gpu_tensor_height":720,
+        "aspect_ratio_preserved":True,
+        "target_pid":PID,"target_hwnd":HANDLE,
+        "frames_processed":2,
+        "frames":[{"index":i,"detections":[dict(item) for item in detections],
+                   "private_gpu_tensor":"not transmitted"}
+                  for i in range(2)],
+    }
+
+
 class FakeWorker:
     def __init__(self):
         self.calls = []
@@ -64,13 +97,20 @@ class FakeWorker:
                  "window_captured": False},
             ("windows-consented-capture-v19", "Capture"): report(),
             ("windows-consented-capture-v19", "Fixture"): report("self_fixture"),
+            ("windows-universal-vision-v22-runtime", "Capture"): v22_report(),
+            ("windows-universal-vision-v22-runtime", "Doctor"):
+                {"ok":True,"code":"ASC_V22_PRIVATE_CANARY_VERIFIED",
+                 "version":"22-private","gpu_initialized":False,
+                 "captured":False,"input_sent":False},
         }
 
     def __call__(self, args, *, capture_output, check, timeout, creationflags):
         self.calls.append((args, timeout))
         action = args[args.index("-Action") + 1]
         filename = args[args.index("-File") + 1]
-        package = "windows-targets-v18" if "WindowTargets" in filename else "windows-consented-capture-v19"
+        package = ("windows-targets-v18" if "WindowTargets" in filename else
+                   "windows-universal-vision-v22-runtime" if "UniversalVision" in filename else
+                   "windows-consented-capture-v19")
         result = self.responses[(package, action)]
         if isinstance(result, bytes):
             output = result
@@ -90,8 +130,20 @@ class GameAgentBridgeTests(unittest.TestCase):
             target.write_text("# fake sealed extension for mocked runner", encoding="utf8")
         self.worker = FakeWorker()
         self.backend = GameAgentBridge(root=root, runner=self.worker, platform="nt")
+        self.root = root
+        self.v22_models = root/"extensions"/"windows-universal-vision-v22-runtime"/"models"
+        self.v22_models.mkdir(parents=True, exist_ok=True)
+        features=bytes(16384)
+        (self.v22_models/"yoloworld_clip8_features.bin").write_bytes(features)
+        (self.v22_models/"yoloworld_clip8_features.json").write_text(
+            json.dumps({"model":"openai/clip-vit-base-patch32",
+                        "tensor_shape":[1,8,512],
+                        "sha256":hashlib.sha256(features).hexdigest(),
+                        "prompts":["figure","animal","rock","tree","icon",
+                                   "entry","tool","structure"]}),encoding="utf8")
         self.flags = patch.dict(os.environ, {"ASC_RC_ALLOW_GAME_AGENT_CAPTURE": "",
-                                           "ASC_RC_ALLOW_GAME_AGENT_GPU_TEST": ""})
+                                           "ASC_RC_ALLOW_GAME_AGENT_GPU_TEST": "",
+                                           "ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB": ""})
         self.flags.start()
         self.addCleanup(self.flags.stop)
 
@@ -205,6 +257,50 @@ class GameAgentBridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(GameAgentError,"SAFETY_CONTRACT_FAILED"):
             self.backend._vision_result(bad,expected_frames=2,external=True,target_pid=PID)
 
+    def test_v22_open_vocab_needs_independent_opt_in_and_native_scope(self):
+        with patch.dict(os.environ, {"ASC_RC_ALLOW_GAME_AGENT_CAPTURE":"1",
+                                     "ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB":"0"}):
+            with self.assertRaisesRegex(GameAgentError,"V22_LOCALLY_DISABLED"):
+                self.backend.open_vocab(HANDLE,PID,START,frames=2)
+            self.assertEqual(self.worker.calls,[])
+        with patch.dict(os.environ, {"ASC_RC_ALLOW_GAME_AGENT_CAPTURE":"1",
+                                     "ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB":"1"}):
+            status=self.backend.status()
+            self.assertTrue(status["perception"]["open_vocabulary_canary_ready"])
+            self.assertFalse(status["perception"]["semantic_provider_ready"])
+            result=self.backend.open_vocab(HANDLE,PID,START,frames=2,threshold=.2)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["schema"],"asc.game_agent.perception_batch.v1")
+            self.assertEqual(len(result["scenes"]),2)
+            self.assertEqual(result["scenes"][0]["entities"][0]["label"],"figure")
+            self.assertFalse(result["scenes"][0]["action_authorized"])
+            self.assertFalse(result["game_semantics_verified"])
+            self.assertEqual(result["capture_scope"],"user_selected_window")
+            self.assertNotIn("private_gpu_tensor",str(result))
+            self.assertNotIn("sha256",str(result))
+            actions=[x[0][x[0].index("-Action")+1] for x in self.worker.calls]
+            self.assertIn("Capture",actions)
+            self.assertEqual(actions[-1],"Capture")
+            capture_args=self.worker.calls[-1][0]
+            self.assertIn("-ProcessStartTicks",capture_args)
+            self.assertNotIn("-ModelPath",capture_args)
+            self.assertNotIn("-Embeddings",capture_args)
+            self.assertNotIn("-ReportPath",capture_args)
+
+    def test_v22_rejects_fake_native_local_consent_without_exposing_report(self):
+        with patch.dict(os.environ, {"ASC_RC_ALLOW_GAME_AGENT_CAPTURE":"1",
+                                     "ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB":"1"}):
+            report=v22_report()
+            report["consent_origin"]="self_fixture_test"
+            self.worker.responses[("windows-universal-vision-v22-runtime","Capture")]=report
+            with self.assertRaisesRegex(GameAgentError,"UNTRUSTED_METADATA"):
+                self.backend.open_vocab(HANDLE,PID,START,frames=2)
+            report=v22_report()
+            report["full_frames_to_cpu_bytes"]=1024
+            self.worker.responses[("windows-universal-vision-v22-runtime","Capture")]=report
+            with self.assertRaisesRegex(GameAgentError,"UNTRUSTED_METADATA"):
+                self.backend.open_vocab(HANDLE,PID,START,frames=2)
+
     def test_powershell_51_oem_codepage_roundtrip(self):
         sample = listed()
         self.worker.responses[("windows-targets-v18","List")] = (
@@ -226,6 +322,17 @@ class GameAgentBridgeTests(unittest.TestCase):
                          "game_agent_preflight","game_agent_capture",
                          "game_agent_gpu_selftest"):
                 self.assertIn(name,agent.tools)
+            self.assertNotIn("game_agent_open_vocab",agent.tools)
+        with patch.dict(os.environ, {"ASC_RC_ROOTS":self.tmp.name,
+                                     "ASC_RC_STATE_DIR":str(Path(self.tmp.name)/"audit-v22"),
+                                     "ASC_RC_ALLOW_GUI":"1","ASC_RC_ALLOW_EXEC":"1",
+                                     "ASC_RC_ALLOW_GAME_AGENT":"1",
+                                     "ASC_RC_ALLOW_GAME_AGENT_CAPTURE":"1",
+                                     "ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB":"1"}):
+            agent=Agent()
+            with patch("asc_remote_commander.os.name","nt"):
+                agent._register_tools()
+            self.assertIn("game_agent_open_vocab",agent.tools)
         with patch.dict(os.environ, {"ASC_RC_ROOTS":self.tmp.name,
                                      "ASC_RC_STATE_DIR":str(Path(self.tmp.name)/"audit2"),
                                      "ASC_RC_ALLOW_GUI":"1","ASC_RC_ALLOW_EXEC":"1",
@@ -243,7 +350,8 @@ class GameAgentBridgeTests(unittest.TestCase):
     def test_manifest_schema_matches_agent_method_names(self):
         catalogue=json.loads((HERE/"server/tools_manifest.json").read_text("utf8"))
         required=["game_agent_status","game_agent_targets","game_agent_preflight",
-                  "game_agent_capture","game_agent_gpu_selftest"]
+                  "game_agent_capture","game_agent_gpu_selftest",
+                  "game_agent_open_vocab"]
         chosen={x["name"]:x for x in catalogue if x["name"] in required}
         self.assertEqual(set(required),set(chosen))
         for entry in chosen.values():
@@ -251,6 +359,7 @@ class GameAgentBridgeTests(unittest.TestCase):
             self.assertFalse(entry["inputSchema"]["additionalProperties"])
         self.assertFalse(chosen["game_agent_capture"]["annotations"]["readOnlyHint"])
         self.assertFalse(chosen["game_agent_gpu_selftest"]["annotations"]["readOnlyHint"])
+        self.assertFalse(chosen["game_agent_open_vocab"]["annotations"]["readOnlyHint"])
         self.assertTrue(chosen["game_agent_preflight"]["annotations"]["readOnlyHint"])
 
 

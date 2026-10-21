@@ -1,3 +1,12 @@
+## Unreleased · Universal Scene v21 / private GPU Vision v22 canary
+
+- Added game-independent scene schema and short-lived metadata-only tracker, plus strict adapter for open-vocabulary detections with 16:9 letterbox coordinate correction, source fingerprint checks and per-frame confidence filtering.
+- Proved a private YOLO-World v2 ONNX + DirectML GPU-only WGC fixture pipeline (4/4 frames, 256 metadata bytes per frame, no full-frame CPU readback). The result is NOT a validated real-game semantic recognizer.
+- Added pinned offline ONNX conversion tools (seven Einsum replacements, eleven static Reshape fixes), GPU text embedding generator, Windows native research source patcher and separately sealed per-user runtime.
+- No game-specific taxonomy, game input automation, OCR/VLM/UI grounding, third-party model weights or native DLLs in public distribution. New v22 source remains experimental and production Hub/CLI versions unchanged.
+- Private v22 runtime refuses capture and GPU tests while local user permissions are off.
+- Added an independently gated, default-off Universal Vision v22 Windows tray permission and sixth optional MCP tool. It returns metadata-only scenes after exact window fingerprint verification and native consent; untrusted results cannot authorize actions.
+
 ## 2026-10-21 · Hub 1.2.4 / Agent and CLI 1.1.4
 
 - Optional locally gated Windows ASC Game Agent v18/v19 bridge: package diagnostics, target listing, preflight, consent-bound WGC/DirectML capture and own-window GPU test.
