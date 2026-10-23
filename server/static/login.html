@@ -29,7 +29,14 @@
     <button type="button" class="primary" id="install-copy">Скопировать команду</button>
   </div>
   <p class="sub" id="install-platform-hint">Вставьте команду в PowerShell или терминал Windows.</p>
-  <p class="sub">Потребуются Node.js 18+, Python 3.10+ и tar. Для проверки без установки добавьте <code>--dry-run</code>. Обычным пользователям не нужны права администратора. На Linux можно установить системный root-сервис.</p>
+  <div class="install-dependencies">
+    <b>Нет Node.js или Python?</b>
+    <p class="sub" id="install-deps-hint">Сначала установите зависимости. Действующая установка агента и привязка не затрагиваются.</p>
+    <div class="install-command-area"><code id="install-deps-command">Команда проверки зависимостей</code><button type="button" class="outline" id="install-deps-copy">Скопировать зависимости</button></div>
+    <p class="sub">Или <a href="/bootstrap.ps1" id="install-bootstrap-script" download>скачайте автоматический установщик</a>: он проверит версии, установит недостающие компоненты и запустит подключение агента. В зависимости от ОС могут потребоваться права администратора.</p>
+    <p class="sub" id="install-bootstrap-run-hint">После скачивания запустите файл в PowerShell.</p>
+  </div>
+  <p class="sub">Для проверки существующего CLI без установки добавьте <code>--dry-run</code>. Агент после установки не использует Node.js.</p>
   <div class="install-pair-steps">
 
     <div id="install-pair-display" hidden>

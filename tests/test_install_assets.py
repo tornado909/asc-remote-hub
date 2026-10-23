@@ -68,7 +68,9 @@ class InstallerAssetTests(unittest.TestCase):
         tags.feed(page)
         self.assertFalse(tags.duplicates)
         for id in ("quick-installer","install-command","install-copy","install-win",
-                   "install-linux","auth-form","auth-password"):
+                   "install-linux","auth-form","auth-password",
+                   "install-deps-command","install-deps-copy",
+                   "install-bootstrap-script","install-bootstrap-run-hint"):
             self.assertIn(id,tags.ids)
         for id in ("panel","errors-section","errors-header-count","devices","admin-panel"):
             self.assertNotIn(id,tags.ids)
@@ -81,6 +83,10 @@ class InstallerAssetTests(unittest.TestCase):
             js=response.read().decode("utf8")
         self.assertIn("location.origin+" + chr(39) + "/cli.tgz" + chr(39), js)
         self.assertIn("copyInstallValue",js)
+        self.assertIn("DEPENDENCY_COMMANDS",js)
+        self.assertIn("install-deps-copy",js)
+        self.assertIn("bootstrap.ps1",js)
+        self.assertIn("bootstrap.sh",js)
         self.assertNotIn("private-deployment.example.invalid",js)
 
     def test_latest_cli_alias_reports_current_release_and_bundles_game_agent(self):
@@ -142,6 +148,43 @@ class InstallerAssetTests(unittest.TestCase):
                 self.assertEqual(response.status,200)
                 self.assertEqual(response.headers.get("Content-Type"),mime)
                 self.assertEqual(response.read(),(HERE/"server"/"static"/filename).read_bytes())
+
+    def test_bootstrap_routes_are_domain_specific_and_public(self):
+        for uri,marker in (
+            ("/bootstrap.ps1","$DependenciesOnly"),
+            ("/bootstrap.sh","--deps-only")
+        ):
+            with urlopen(self.url+uri,timeout=8) as response:
+                self.assertEqual(response.status,200)
+                self.assertTrue(response.headers.get("Content-Type").startswith("text/plain"))
+                self.assertEqual(response.headers.get("Cache-Control"),"no-store")
+                source=response.read().decode("utf8")
+            self.assertIn(self.hub.base,source)
+            self.assertIn(marker,source)
+            self.assertNotIn("__HUB_ORIGIN__",source)
+            self.assertNotIn("private-deployment.example.invalid",source)
+            self.assertNotIn("shell: true",source)
+            self.assertIn("/cli.tgz",source)
+        with urlopen(self.url+"/",timeout=8) as response:
+            page=response.read().decode("utf8")
+        self.assertIn('href="/bootstrap.ps1"',page)
+
+    def test_bootstrap_scripts_never_embed_private_hub(self):
+        templates=[
+            (HERE/"server/static/bootstrap.ps1").read_text("utf8"),
+            (HERE/"server/static/bootstrap.sh").read_text("utf8")
+        ]
+        for template in templates:
+            self.assertEqual(template.count("'__HUB_ORIGIN__'"),1)
+            self.assertNotIn("private-deployment.example.invalid",template)
+        windows,linux=templates
+        self.assertIn("CheckOnly",windows)
+        self.assertIn("MODE=check",linux)
+        self.assertIn("Python.Python.3.12",windows)
+        self.assertIn("OpenJS.NodeJS.LTS",windows)
+        self.assertIn("--deps-only",linux)
+        self.assertIn("python3-venv",linux)
+        self.assertIn("exec npx --yes",linux)
 
     def test_health_and_oauth_still_work(self):
         for route in ("/healthz","/.well-known/oauth-authorization-server"):

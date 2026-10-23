@@ -1,3 +1,8 @@
+## 2026-10-23 · Hub 1.2.5 / CLI 1.1.4 · Bootstrap prerequisites
+
+- Added public per-domain Windows PowerShell and Linux Bash bootstrap scripts to install missing Node/npm/npx, Python and Linux venv from supported OS package managers, then reuse the existing CLI.
+- Added copyable prerequisite commands, downloadable scripts and dependency-only/check modes to public pages.
+- Installer preserves existing agent enrollment; CLI and public package versions unchanged.
 ## 2026-10-21 · Hub 1.2.4 / Agent and CLI 1.1.4
 
 - Optional locally gated Windows ASC Game Agent v18/v19 bridge: package diagnostics, target listing, preflight, consent-bound WGC/DirectML capture and own-window GPU test.
