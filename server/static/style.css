@@ -100,3 +100,10 @@ button.text-link:hover{text-decoration:underline}
 .manage-operation code{overflow-wrap:anywhere;word-break:break-word;flex:1;font:12px/1.6 ui-monospace,Consolas,monospace;user-select:all}
 .manage-operation button{white-space:nowrap}
 @media(max-width:750px){.manage-commands{grid-template-columns:1fr}}
+
+.install-dependencies{margin:14px 0;padding:14px;border:1px solid var(--border);border-radius:11px;background:#101726}
+.install-dependencies b{display:block;margin-bottom:5px}
+.install-dependencies .install-command-area{gap:10px;padding:12px;margin:9px 0}
+.install-dependencies .install-command-area code{display:block;font:12px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all;color:#e8f0fd}
+.install-dependencies .install-command-area button{align-self:flex-start}
+.install-dependencies a{color:#9ecdfb;text-decoration:underline}

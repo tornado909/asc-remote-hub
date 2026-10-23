@@ -106,7 +106,7 @@ class UniversalOAuthTests(unittest.TestCase):
         self.assertEqual(owner['id'],self.user['id'])
         mcp=self.hub.mcp(owner,{'jsonrpc':'2.0','id':7,'method':'initialize',
             'params':{'protocolVersion':'2025-11-25'}})
-        self.assertEqual(mcp['result']['serverInfo']['version'],'1.2.4')
+        self.assertEqual(mcp['result']['serverInfo']['version'],'1.2.5')
         self.assertEqual(mcp['result']['capabilities']['tools']['listChanged'],False)
         tool_list=self.hub.mcp(owner,{'jsonrpc':'2.0','id':8,'method':'tools/list'})
         self.assertGreater(len(tool_list['result']['tools']),20)

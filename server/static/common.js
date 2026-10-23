@@ -16,10 +16,24 @@ const INSTALL_COMMANDS={
   windows:'npx --yes '+INSTALLER_URL,
   linux:'npx --yes '+INSTALLER_URL
 };
+const DEPENDENCY_COMMANDS={
+  windows:'winget install --id OpenJS.NodeJS.LTS --exact --source winget --accept-package-agreements --accept-source-agreements; winget install --id Python.Python.3.12 --exact --source winget --accept-package-agreements --accept-source-agreements',
+  linux:'if [ "$(id -u)" -eq 0 ]; then apt-get update && apt-get install -y nodejs npm python3 python3-venv tar curl; else sudo apt-get update && sudo apt-get install -y nodejs npm python3 python3-venv tar curl; fi'
+};
 let installPlatform='windows';
 function chooseInstallPlatform(target){
   installPlatform=target;
   text('install-command',INSTALL_COMMANDS[target]);
+  text('install-deps-command',DEPENDENCY_COMMANDS[target]);
+  text('install-deps-hint',target==='windows'
+    ?'Windows 10/11: установка через WinGet. После неё переоткройте PowerShell перед npx. Может потребоваться UAC.'
+    :'Debian/Ubuntu: установка через apt и sudo. Для Fedora/RHEL/SUSE используйте скачиваемый скрипт.');
+  const bootstrap=$('install-bootstrap-script');
+  bootstrap.href=target==='windows'?'/bootstrap.ps1':'/bootstrap.sh';
+  bootstrap.setAttribute('download',target==='windows'?'bootstrap.ps1':'bootstrap.sh');
+  text('install-bootstrap-run-hint',target==='windows'
+    ?'Скачанный bootstrap.ps1: powershell -NoProfile -ExecutionPolicy Bypass -File .\\bootstrap.ps1 (PowerShell в папке загрузок).'
+    :'Скачанный bootstrap.sh: bash ./bootstrap.sh (терминал в папке загрузок).');
   text('install-platform-hint',target==='windows'
     ?'Вставьте команду в PowerShell или терминал Windows.'
     :'Вставьте команду в терминал Linux.');
@@ -44,6 +58,9 @@ $('install-win').addEventListener('click',()=>chooseInstallPlatform('windows'));
 $('install-linux').addEventListener('click',()=>chooseInstallPlatform('linux'));
 $('install-copy').addEventListener('click',()=>copyInstallValue(
   INSTALL_COMMANDS[installPlatform],'Команда скопирована — вставьте её в терминал.'));
+$('install-deps-copy').addEventListener('click',()=>copyInstallValue(
+  DEPENDENCY_COMMANDS[installPlatform],
+  'Команда установки зависимостей скопирована. После неё запустите npx.'));
 if($('install-copy-pair')) $('install-copy-pair').addEventListener('click',()=>copyInstallValue(
   $('install-pair-code').textContent,'Код скопирован. Вставьте его в установщик.'));
 async function issuePairCode(){

@@ -87,6 +87,11 @@ Open `https://hub.example.com`, create an account and click **Add device** to ob
 | Windows (PowerShell) | `npx --yes https://hub.example.com/cli.tgz` |
 | Linux | `npx --yes https://hub.example.com/cli.tgz` |
 
+### Automatic prerequisite setup
+
+Without Node.js/npx or Python, use the new dependency commands on the hub's connection page, or download bootstrap.ps1 (Windows) / bootstrap.sh (Linux) from the same HTTPS hub. The scripts detect installed runtimes, install missing packages through supported OS package managers, then launch the existing SHA-256-checking CLI with interactive pairing.
+
+Windows 10/11 uses WinGet and supports -DependenciesOnly / -CheckOnly. Linux uses apt, dnf, yum or zypper and supports --deps-only / --check. Older unsupported distros fail without adding third-party repositories. Package installation may require administrator or sudo approval. The running agent does not need Node.js.
 The CLI requires **Node.js 18+**, **Python 3.10+** and `tar`. Node.js is only used for installation; the running agent uses Python. It verifies the SHA-256 of the download, prompts for a one-time code, asks for the allowed folders and permissions and configures autostart.
 
 Safe installation preview on a computer with no setup changes:

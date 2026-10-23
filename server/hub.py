@@ -31,7 +31,7 @@ import ipaddress
 from traffic_trace import TrafficTrace
 from distribution import build_distributions, CLI, AGENT
 
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 PROTOCOLS = {"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
 MAX_REQUEST = 9 * 1024 * 1024
 MAX_JSON = 9 * 1024 * 1024
@@ -1241,6 +1241,19 @@ class Handler(BaseHTTPRequestHandler):
             name = CLI if path=="/cli.tgz" else path.rsplit("/",1)[-1]
             return self.send(200,self.hub.public_packages[name].read_bytes(),
                              mimetype="application/gzip")
+        # Platform bootstrap scripts contain no credentials and have an
+        # allowlisted origin substituted at request time. They do NOT
+        # embed npm, Python or other third-party installer binaries.
+        if path in ("/bootstrap.ps1", "/bootstrap.sh"):
+            origin=self.hub.base
+            if not re.fullmatch(r"https?://(?:[A-Za-z0-9.-]+|\[[0-9a-fA-F:]+\])(?::[0-9]{1,5})?",origin):
+                raise Failure(500,"Invalid bootstrap origin")
+            asset="bootstrap.ps1" if path.endswith(".ps1") else "bootstrap.sh"
+            template=(Path(__file__).parent/"static"/asset).read_text(encoding="utf-8")
+            if template.count("'__HUB_ORIGIN__'") != 1:
+                raise Failure(500,"Invalid bootstrap template")
+            script=template.replace("'__HUB_ORIGIN__'",json.dumps(origin))
+            return self.send(200,script,mimetype="text/plain")
         # Serve only explicit, immutable branding assets.
         if path=="/favicon.ico":
             return self.send(200,(Path(__file__).parent/"static/favicon.ico").read_bytes(),
