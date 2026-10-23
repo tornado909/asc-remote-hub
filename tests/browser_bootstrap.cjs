@@ -71,6 +71,14 @@ async function run(){
   await new Promise(r=>setTimeout(r,80));
   assert.equal(signedIn.get('email').textContent,'person@example.test');
   assert.equal(signedIn.get('install-command').textContent,'npx --yes https://hub.example.net/cli.tgz');
+  signedIn.get('install-linux').listeners.click();
+  assert(signedIn.get('install-command').textContent.includes('/bootstrap.sh'));
+  assert(!signedIn.get('install-command').textContent.includes('npx'));
+  assert(signedIn.get('install-deps-command').textContent.includes('--deps-only'));
+  assert(signedIn.get('manage-unpair-command').textContent.includes('--unpair'));
+  signedIn.get('install-win').listeners.click();
+  assert.equal(signedIn.get('install-command').textContent,'npx --yes https://hub.example.net/cli.tgz');
+  assert(signedIn.get('manage-unpair-command').textContent.includes('npx --yes'));
   assert.equal(signedIn.get('total-calls').textContent,'4');
   assert.equal(signedIn.get('userbar').children[0].textContent,'Выйти');
   await signedIn.get('userbar').listeners.click({target:{id:'logout'}});
