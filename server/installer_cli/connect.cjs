@@ -11,8 +11,8 @@ const readline=require('node:readline/promises');
 const {once}=require('node:events');
 
 const ORIGIN='__HUB_ORIGIN__';
-const VERSION='1.1.4';
-const ARCHIVE='asc-remote-hub-agent-1.1.4.tar.gz';
+const VERSION='1.1.5';
+const ARCHIVE='asc-remote-hub-agent-1.1.5.tar.gz';
 const CHECKSUM='__ARCHIVE_SHA256__';
 const WIN=process.platform==='win32';
 const HOME=os.homedir();
@@ -223,6 +223,33 @@ async function manageAgent(opt){
   }
 }
 
+// Stage on the destination filesystem. A Linux /tmp tmpfs and the user's
+// home directory are often different mounts; rename() across them fails
+// with EXDEV. Copy the SHA-256-verified release into a private sibling
+// directory and rename only within the same filesystem.
+async function installVerifiedAgentFiles(source,dir){
+  const parent=path.dirname(dir);
+  await fsp.mkdir(parent,{recursive:true});
+  if(fs.existsSync(dir)){
+    if((await fsp.lstat(dir)).isSymbolicLink())
+      fail('Каталог агента является символической ссылкой; установка остановлена.');
+    // A previous enrollment or Python venv must survive in-place updates.
+    await fsp.cp(source,dir,{recursive:true,force:true});
+    return 'updated';
+  }
+  const staged=await fsp.mkdtemp(path.join(parent,'.asc-hub-agent-stage-'));
+  try{
+    await fsp.cp(source,staged,{recursive:true,force:true});
+    if(!fs.existsSync(path.join(staged,'client','bridge.py')))
+      fail('Недостаточно файлов в подготовленной копии агента.');
+    if(fs.existsSync(dir))fail('Каталог агента создан другим процессом. Повторите установку.');
+    await fsp.rename(staged,dir);
+    return 'installed';
+  }finally{
+    await fsp.rm(staged,{recursive:true,force:true}).catch(()=>{});
+  }
+}
+
 async function main(){
   const opt=options(process.argv.slice(2));
   if(opt.help){help();return;}
@@ -289,14 +316,11 @@ async function main(){
     if(!fs.existsSync(path.join(source,'client','bridge.py'))){
       fail('В пакете отсутствует агент.');
     }
-    await fsp.mkdir(path.dirname(dir),{recursive:true});
-    if(fs.existsSync(dir)){
-      // Copy only verified release files; retain the existing .venv and
-      // credentials. Never remove the directory on retries.
-      await fsp.cp(source,dir,{recursive:true,force:true});
+    const installResult=await installVerifiedAgentFiles(source,dir);
+    if(installResult==='updated'){
       console.log('✓ Файлы агента обновлены, данные существующего подключения сохранены.');
     }else{
-      await fsp.rename(source,dir);
+      console.log('✓ Агент размещён в домашнем каталоге (с проверкой целостности).');
     }
     if(WIN){
       console.log('Создаю изолированное Python-окружение агента...');
@@ -350,7 +374,11 @@ async function main(){
     await fsp.rm(tmp,{recursive:true,force:true}).catch(()=>{});
   }
 }
-main().catch(e=>{
-  console.error('\nОшибка установки: '+(e&&e.message||String(e)));
-  process.exitCode=1;
-});
+// Allow isolated filesystem regression tests without starting enrollment.
+module.exports={installVerifiedAgentFiles};
+if(require.main===module){
+  main().catch(e=>{
+    console.error('\nОшибка установки: '+(e&&e.message||String(e)));
+    process.exitCode=1;
+  });
+}

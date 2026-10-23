@@ -55,8 +55,10 @@ jobs:
           node --check server/static/auth.js
           node --check server/static/dashboard.js
           node --check server/installer_cli/connect.cjs
-      - name: Browser scripts (mocked DOM and requests)
-        run: node tests/browser_bootstrap.cjs
+      - name: Browser scripts and cross-filesystem agent installation
+        run: |
+          node tests/browser_bootstrap.cjs
+          node tests/install_cross_device.cjs
       - name: Check public tree for accidental private data
         run: python3 scripts/check_public_tree.py
 

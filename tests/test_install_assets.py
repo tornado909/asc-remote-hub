@@ -183,8 +183,11 @@ class InstallerAssetTests(unittest.TestCase):
         self.assertIn("Python.Python.3.12",windows)
         self.assertIn("OpenJS.NodeJS.LTS",windows)
         self.assertIn("--deps-only",linux)
-        self.assertIn("python3-venv",linux)
-        self.assertIn("exec npx --yes",linux)
+        self.assertIn("--no-install-recommends",linux)
+        self.assertIn('node "$cli"',linux)
+        self.assertIn("--verify-cli",linux)
+        self.assertNotIn("nodejs npm python3",linux)
+        self.assertIn("npm/npx are not needed",linux)
 
     def test_health_and_oauth_still_work(self):
         for route in ("/healthz","/.well-known/oauth-authorization-server"):

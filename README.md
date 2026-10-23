@@ -92,6 +92,9 @@ Open `https://hub.example.com`, create an account and click **Add device** to ob
 Without Node.js/npx or Python, use the new dependency commands on the hub's connection page, or download bootstrap.ps1 (Windows) / bootstrap.sh (Linux) from the same HTTPS hub. The scripts detect installed runtimes, install missing packages through supported OS package managers, then launch the existing SHA-256-checking CLI with interactive pairing.
 
 Windows 10/11 uses WinGet and supports -DependenciesOnly / -CheckOnly. Linux uses apt, dnf, yum or zypper and supports --deps-only / --check. Older unsupported distros fail without adding third-party repositories. Package installation may require administrator or sudo approval. The running agent does not need Node.js.
+**Linux preferred path (no npm required):** use the automatic install command displayed on your hub website, or download its `/bootstrap.sh` and run `bash bootstrap.sh`. It installs only missing OS packages (Node.js 18+, Python 3.10+, tar, curl/wget), downloads the **latest** `/cli.tgz` over HTTPS and runs the CLI with Node directly, preserving interactive pairing input. Supported bootstrap flags: `--check`, `--deps-only`, `--verify-cli`, `--cli-dry-run`, `--unpair`, `--uninstall`.
+
+On Debian and Raspberry Pi OS, installing the separate `npm` distro package can bring hundreds of transitive packages; the new bootstrap does not require them. The original `npx .../cli.tgz` remains supported for existing npm installations. CLI 1.1.5 stages verified agent files on their destination filesystem, avoiding the `EXDEV` error when `/tmp` is on another mount.
 The CLI requires **Node.js 18+**, **Python 3.10+** and `tar`. Node.js is only used for installation; the running agent uses Python. It verifies the SHA-256 of the download, prompts for a one-time code, asks for the allowed folders and permissions and configures autostart.
 
 Safe installation preview on a computer with no setup changes:

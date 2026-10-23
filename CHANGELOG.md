@@ -1,3 +1,9 @@
+## 2026-10-23 · Hub 1.2.6 / CLI 1.1.5 · Raspberry Pi compatibility
+
+- Fixed EXDEV on Raspberry Pi and split filesystem hosts: agent files are copied into a private staging directory on the destination filesystem and then renamed within that mount. Existing credentials and virtual environments are preserved.
+- Linux bootstrap no longer requires npm/npx or Python venv, downloads latest /cli.tgz and directly runs its Node entrypoint. It installs only missing distro prerequisites, avoiding Debian's hundreds of npm dependencies.
+- Added lightweight Linux install/unpair/uninstall website commands, bootstrap check/verify modes, cross-device and existing-credential regression tests.
+- Windows CLI, OAuth device pairing, existing agent credentials and Game Agent behavior unchanged.
 ## 2026-10-23 · Hub 1.2.5 / CLI 1.1.4 · Bootstrap prerequisites
 
 - Added public per-domain Windows PowerShell and Linux Bash bootstrap scripts to install missing Node/npm/npx, Python and Linux venv from supported OS package managers, then reuse the existing CLI.
