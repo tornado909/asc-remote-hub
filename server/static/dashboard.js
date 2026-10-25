@@ -163,8 +163,14 @@ async function refreshUsage(){
       const bar=document.createElement('span');bar.className='usage-bar';bar.setAttribute('aria-hidden','true');
       const fill=document.createElement('span');
       fill.style.width=Math.max(1,Math.round(row.calls/maxCalls*100))+'%';bar.append(fill);
-      const num=document.createElement('b');num.className='usage-value';
-      num.textContent=row.calls+(row.errors?' / ошибок: '+row.errors:'');
+      const num=document.createElement('span');num.className='usage-value';
+      const count=document.createElement('strong');count.className='usage-count';
+      count.textContent=row.calls.toLocaleString('ru-RU');num.append(count);
+      if(row.errors){
+        const err=document.createElement('span');err.className='usage-errors';
+        err.textContent=row.errors===1?'1 ошибка':row.errors+' ош.';
+        num.append(err);
+      }
       el.append(label,bar,num);rows.append(el);
     });
     const errorTools=[...new Set(usage.daily.filter(x=>x.errors>0).map(x=>x.tool))].sort();

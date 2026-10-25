@@ -1,3 +1,9 @@
+## 1.2.9 (2026-10-25)
+
+- Restore vertical spacing between setup sections and usage cards; remove the incorrect first-of-type margin override.
+- Stack accordion titles above subtitles, separate the error count badge, and align usage counts in a fixed column.
+- Normalize metric spacing and mobile call-list layout; no changes to pairing, OAuth, or MCP operations.
+
 ## 1.2.8 (2026-10-25)
 
 - Load usage statistics only when the Usage view is opened, keeping the Devices landing page independent.

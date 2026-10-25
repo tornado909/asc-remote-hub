@@ -32,7 +32,7 @@ function setup(view,{session=true,badLogin=false}={}){
     if(endpoint==='/api/me') data={authenticated:session,email:'person@example.test',
       csrf:'csrf-abc',diagnostic:false,is_admin:false};
     else if(endpoint==='/api/devices') data={devices:[]};
-    else if(endpoint==='/api/usage') data={total:4,errors:1,daily:[]};
+    else if(endpoint==='/api/usage') data={total:42,errors:1,daily:[{day:'2026-10-25',tool:'run_command',calls:42,errors:1}]};
     else if(endpoint==='/api/oauth/connections') data={connections:[]};
     else if(endpoint.startsWith('/api/errors?')) data={total:1,events:[],offset:0,has_more:false};
     else if(endpoint==='/api/login' && badLogin){status=401;data={error:'Invalid credentials'};}
@@ -100,7 +100,11 @@ async function run(){
   signedIn.get('nav-usage').listeners.click({preventDefault(){}});
   await new Promise(r=>setTimeout(r,10));
   assert.equal(signedIn.get('view-usage').hidden,false);
-  assert.equal(signedIn.get('total-calls').textContent,'4');
+  assert.equal(signedIn.get('total-calls').textContent,'42');
+  const callRow=signedIn.get('usage').children[0];
+  assert.equal(callRow.children[0].textContent,'2026-10-25 · run_command');
+  assert.equal(callRow.children[2].children[0].textContent,'42');
+  assert.equal(callRow.children[2].children[1].textContent,'1 ошибка');
   assert(signedIn.requests.some(r=>r.endpoint==='/api/usage'),
     'Usage statistics must load when their tab opens');
   signedIn.get('nav-apps').listeners.click({preventDefault(){}});
