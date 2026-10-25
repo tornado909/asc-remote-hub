@@ -22,7 +22,7 @@ class ErrorPanelLayoutTests(unittest.TestCase):
     def test_default_collapsed_and_caption_tracks_state(self):
         self.assertIn('<details class="card errors-collapsed" id="errors-section">',self.html)
         self.assertNotIn('<details class="card errors-collapsed" id="errors-section" open',self.html)
-        self.assertIn("errors-caption-collapsed",self.html)
-        self.assertIn("errors-caption-open",self.html)
-        self.assertIn(".errors-collapsed[open] .errors-caption-open{display:inline}",self.css)
-        self.assertIn(".errors-collapsed[open] .errors-caption-collapsed{display:none}",self.css)
+        self.assertIn("Журнал ошибок",self.html)
+        self.assertNotIn("errors-caption-collapsed",self.html)
+        self.assertNotIn("errors-caption-open",self.html)
+        self.assertIn("errors-section",self.html)

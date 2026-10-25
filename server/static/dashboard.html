@@ -1,106 +1,195 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ASC Remote Hub</title><link rel="icon" href="/static/brand-mark.png" type="image/png"><link rel="alternate icon" href="/favicon.ico" type="image/x-icon"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/static/style.css"></head><body>
-<header><div class="brand"><img class="brand-icon" src="/static/brand-mark.png" width="32" height="32" alt=""> ASC Remote Hub</div><div id="userbar"></div></header>
-<main>
-<section class="card quick-installer" id="quick-installer">
-  <div class="install-heading">
-    <div>
-      <div class="eyebrow">Подключение нового компьютера</div>
-      <h2>Подключите Windows или Linux одной командой</h2>
-      <p class="sub">Установщик с нашего сервера проверит пакет, попросит код привязки и настроит автозапуск. Без платного туннеля.</p>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d1016">
+  <title>Устройства · ASC Remote Hub</title>
+  <link rel="icon" href="/static/brand-mark.png" type="image/png">
+  <link rel="alternate icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="hub-app">
+<div class="app-shell" id="panel">
+  <aside class="hub-sidebar" aria-label="Главная навигация">
+    <a class="hub-logo" href="#devices" aria-label="ASC Remote Hub — устройства">
+      <img src="/static/brand-mark.png" width="30" height="30" alt="">
+      <span><strong>ASC Remote Hub</strong><small>Remote MCP</small></span>
+    </a>
+    <nav class="hub-navigation" aria-label="Разделы">
+      <a href="#devices" class="hub-nav active" id="nav-devices" aria-current="page"><span class="nav-glyph" aria-hidden="true">▣</span>Устройства</a>
+      <a href="#connect" class="hub-nav" id="nav-connect"><span class="nav-glyph" aria-hidden="true">＋</span>Подключение</a>
+      <a href="#usage" class="hub-nav" id="nav-usage"><span class="nav-glyph" aria-hidden="true">▥</span>Статистика</a>
+      <a href="#apps" class="hub-nav" id="nav-apps"><span class="nav-glyph" aria-hidden="true">◇</span>Приложения</a>
+      <a href="#settings" class="hub-nav" id="nav-settings"><span class="nav-glyph" aria-hidden="true">⚙</span>Настройки</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-account">
+        <span class="account-avatar" aria-hidden="true">A</span>
+        <span id="account-email">Аккаунт</span>
+      </div>
+      <div class="sidebar-copyright">ASC Remote Hub</div>
     </div>
-    <div class="install-brand">ASC Remote Hub</div>
-  </div>
-  <div class="install-steps" aria-label="Этапы подключения">
-    <span><b>1</b> Скопировать команду</span>
-    <span><b>2</b> Запустить в терминале</span>
-    <span><b>3</b> Ввести код привязки</span>
-  </div>
-  <div class="install-controls">
-    <div class="install-switch" role="group" aria-label="Операционная система">
-      <button type="button" id="install-win" class="install-os active" aria-pressed="true">Windows</button>
-      <button type="button" id="install-linux" class="install-os" aria-pressed="false">Linux</button>
-    </div>
-    <a class="install-doc" href="/downloads/asc-remote-hub-agent-1.1.5.tar.gz" download>Скачать исходники агента ↗</a>
-  </div>
-  <div class="install-command-area">
-    <div class="install-command-text"><span class="install-prompt">&gt;</span><code id="install-command">Команда появится здесь</code></div>
-    <button type="button" class="primary" id="install-copy">Скопировать команду</button>
-  </div>
-  <p class="sub" id="install-platform-hint">Вставьте команду в PowerShell или терминал Windows.</p>
-  <div class="install-dependencies">
-    <b>Нет Node.js или Python?</b>
-    <p class="sub" id="install-deps-hint">Сначала установите зависимости. Действующая установка агента и привязка не затрагиваются.</p>
-    <div class="install-command-area"><code id="install-deps-command">Команда проверки зависимостей</code><button type="button" class="outline" id="install-deps-copy">Скопировать зависимости</button></div>
-    <p class="sub">Также можно <a href="/bootstrap.ps1" id="install-bootstrap-script" download>скачать автоматический установщик</a>, проверить его текст и запустить локально. Он установит недостающие компоненты и запустит подключение. Для Linux npm/npx не требуются. При установке пакетов могут потребоваться права администратора.</p>
-    <p class="sub" id="install-bootstrap-run-hint">После скачивания запустите файл в PowerShell.</p>
-  </div>
-  <p class="sub">Windows: для проверки CLI используйте <code>--dry-run</code>. Linux: для проверки скачанного bootstrap-скрипта используйте <code>--check</code>, для проверки пакета и окружения <code>--cli-dry-run</code>. Сам агент работает на Python без Node.js.</p>
-  <div class="install-pair-steps">
-    <button type="button" class="outline" id="install-create-pair">Получить одноразовый код привязки</button>
-    <div id="install-pair-display" hidden>
-      <p class="sub">Вставьте код в терминал. Он действителен 10 минут; никому его не передавайте.</p>
-      <div class="install-pair-code"><code id="install-pair-code"></code><button type="button" class="outline" id="install-copy-pair">Скопировать код</button></div>
-    </div>
+  </aside>
 
-    <p id="install-notice" class="notice" role="status"></p>
-  </div>
-</section>
-<section class="card manage-agent" id="manage-agent">
- <h2>Отвязать или удалить ASC Remote Hub</h2>
- <p class="sub">Выполните команду <b>на том компьютере</b>, где установлен агент (Windows PowerShell или Linux). Сайт не удаляет программы удалённо.</p>
- <div class="manage-commands">
-  <div class="manage-operation"><b>Отвязать устройство</b><p class="sub">Отозвать его ключ на текущем хабе, остановить автозапуск и удалить локальную привязку. Приложение останется для подключения к другому хабу.</p>
-   <div class="install-command-area"><code id="manage-unpair-command"></code><button class="outline" id="manage-unpair-copy" type="button">Скопировать</button></div>
-  </div>
-  <div class="manage-operation"><b>Удалить агент</b><p class="sub">Отозвать привязку, остановить агент и удалить установку, настройки и журналы текущего пользователя. Остальные программы и устройства не затрагиваются.</p>
-   <div class="install-command-area"><code id="manage-uninstall-command"></code><button class="outline" id="manage-uninstall-copy" type="button">Скопировать</button></div>
-  </div>
- </div>
- <p class="sub">Обе операции запросят локальное подтверждение. Если старый хаб недоступен, добавьте <code>--local-only</code>. Тогда не забудьте отдельно отозвать устройство на старом сервере. Для просмотра плана используйте <code>--dry-run</code>.</p>
- <p class="notice" id="manage-notice" role="status"></p>
-</section>
-<section id="panel"><div class="titleline"><div><div class="eyebrow">Обзор</div><h1>Панель управления</h1><p id="email"></p></div><button class="outline" id="refresh">Обновить</button></div>
-<div class="stats"><div class="card"><div class="stat-number" id="total-calls">—</div><div class="sub">Всего вызовов</div></div>
-<div class="card"><div class="stat-number" id="total-errors">—</div><div class="sub">С ошибками</div><button id="goto-errors" class="text-link" type="button">Смотреть ошибки →</button></div>
-<div class="card"><div class="stat-number" id="device-count">—</div><div class="sub">Моих устройств</div></div>
-<div class="card"><div class="stat-number">∞</div><div class="sub">Лимит вызовов</div></div></div>
-<details class="card errors-collapsed" id="errors-section">
-<summary class="errors-main-summary">
-  <span class="errors-summary-title">Ошибки вызовов <span id="errors-header-count" class="errors-summary-count">—</span></span>
-  <span class="sub errors-caption-collapsed">Показать историю и подробности</span><span class="sub errors-caption-open">Свернуть историю</span>
-</summary>
-<div class="errors-detail-content">
-<div class="cardhead"><p class="sub">Вы можете просмотреть ошибки своих устройств и отфильтровать историю.</p>
-<button class="outline" id="errors-refresh" type="button">Обновить</button></div>
-<div class="error-filters">
-<label>Устройство<select id="errors-device"><option value="">Все устройства</option></select></label>
-<label>Инструмент<select id="errors-tool"><option value="">Все инструменты</option></select></label>
-<label>Период<select id="errors-days"><option value="1">24 часа</option><option value="7">7 дней</option><option value="30" selected>30 дней</option></select></label>
+  <main class="hub-content" id="hub-main">
+    <section class="hub-view" id="view-devices" aria-labelledby="devices-heading">
+      <div class="view-heading">
+        <div><h1 id="devices-heading">Устройства</h1><p>Компьютеры, доступные вашим MCP-приложениям.</p></div>
+        <button class="primary" type="button" id="pair">＋ Добавить устройство</button>
+      </div>
+      <section class="card devices-card" aria-labelledby="device-list-heading">
+        <div class="section-heading">
+          <h2 id="device-list-heading">Мои устройства <span class="tiny-count" id="devices-total">—</span></h2>
+          <button type="button" class="quiet-button" id="refresh">Обновить</button>
+        </div>
+        <div id="devices" class="devices-list" aria-live="polite"><p class="sub">Загружаем устройства…</p></div>
+      </section>
+
+      <section class="card clients-card" aria-labelledby="clients-heading">
+        <div class="section-heading"><h2 id="clients-heading">Где использовать</h2></div>
+        <div class="client-line">
+          <span class="client-icon client-chat" aria-hidden="true">✳</span>
+          <div class="client-info"><b>ChatGPT</b><small>Доступ через MCP и вашу учётную запись</small></div>
+          <a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer" class="quiet-link">Открыть ↗</a>
+        </div>
+        <div class="client-line">
+          <span class="client-icon client-cursor" aria-hidden="true">⌘</span>
+          <div class="client-info"><b>Cursor</b><small>Добавьте адрес MCP в настройках</small></div>
+          <a href="https://cursor.com" target="_blank" rel="noopener noreferrer" class="quiet-link">Открыть ↗</a>
+        </div>
+        <div class="client-line">
+          <span class="client-icon client-mcp" aria-hidden="true">MCP</span>
+          <div class="client-info"><b>Любой MCP-клиент</b><small>OpenMausBot, VS Code и другие</small></div>
+          <button type="button" class="quiet-link quiet-button" id="open-apps">Endpoint</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="hub-view" id="view-connect" aria-labelledby="connect-heading" hidden>
+      <div class="view-heading"><div><h1 id="connect-heading">Добавить устройство</h1><p>Запустите команду на нужном компьютере и введите код.</p></div></div>
+      <section class="card quick-installer" id="quick-installer">
+        <div class="install-controls">
+          <div class="install-switch" role="group" aria-label="Выбор системы">
+            <button type="button" id="install-win" class="install-os active" aria-pressed="true">Windows</button>
+            <button type="button" id="install-linux" class="install-os" aria-pressed="false">Linux</button>
+          </div>
+          <a class="install-doc" href="/downloads/asc-remote-hub-agent-1.1.5.tar.gz" download>Исходники агента ↗</a>
+        </div>
+        <div class="install-command-area main-command">
+          <div class="install-command-text"><span class="install-prompt" aria-hidden="true">&gt;</span><code id="install-command">Команда установки</code></div>
+          <button class="primary" type="button" id="install-copy">Скопировать команду</button>
+        </div>
+        <p class="sub" id="install-platform-hint">Вставьте команду в PowerShell.</p>
+        <div class="connect-divider"></div>
+        <div class="install-pair-steps">
+          <div class="pair-action-row"><div><b>Код привязки</b><small>Одноразовый, действует 10 минут</small></div>
+            <button type="button" class="outline" id="install-create-pair">Получить код</button>
+          </div>
+          <div id="install-pair-display" hidden>
+            <div class="install-pair-code"><code id="install-pair-code"></code><button type="button" class="outline" id="install-copy-pair">Копировать</button></div>
+            <p class="sub">Введите код в терминале. Никому не передавайте его.</p>
+          </div>
+          <p id="install-notice" class="notice" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <details class="card advanced-block" id="install-advanced">
+        <summary>Дополнительная установка <span class="sub">Если нет Node.js или Python</span></summary>
+        <div class="advanced-content install-dependencies">
+          <p class="sub" id="install-deps-hint">Установка отсутствующих зависимостей.</p>
+          <div class="install-command-area">
+            <code id="install-deps-command">Команда установки зависимостей</code>
+            <button class="outline" type="button" id="install-deps-copy">Скопировать</button>
+          </div>
+          <p class="sub">Можно также <a href="/bootstrap.ps1" id="install-bootstrap-script" download>скачать автоматический установщик</a> и запустить его локально.</p>
+          <p class="sub" id="install-bootstrap-run-hint"></p>
+          <p class="sub">Windows: проверка CLI <code>--dry-run</code>. Linux: <code>--check</code> или <code>--cli-dry-run</code>.</p>
+        </div>
+      </details>
+
+      <details class="card advanced-block" id="manage-agent">
+        <summary>Обслуживание агента <span class="sub">Отвязка и удаление</span></summary>
+        <div class="advanced-content">
+          <p class="sub">Команды выполняются локально на компьютере с агентом. На сайте программы не удаляются.</p>
+          <div class="manage-commands">
+            <div class="manage-operation"><b>Отвязать устройство</b>
+              <div class="install-command-area"><code id="manage-unpair-command"></code><button id="manage-unpair-copy" type="button" class="outline">Копировать</button></div>
+            </div>
+            <div class="manage-operation"><b>Удалить агент</b>
+              <div class="install-command-area"><code id="manage-uninstall-command"></code><button id="manage-uninstall-copy" type="button" class="outline">Копировать</button></div>
+            </div>
+          </div>
+          <p class="sub">Обе операции требуют локального подтверждения. Для неподключённого старого хаба предусмотрен <code>--local-only</code>.</p>
+          <p class="notice" id="manage-notice" role="status"></p>
+        </div>
+      </details>
+    </section>
+
+    <section class="hub-view" id="view-usage" aria-labelledby="usage-heading" hidden>
+      <div class="view-heading"><div><h1 id="usage-heading">Статистика</h1><p>Использование инструментов и журнал ошибок.</p></div>
+        <button class="outline" type="button" id="usage-refresh">Обновить</button></div>
+      <div class="stats">
+        <div class="card"><span class="metric-label">Вызовов инструментов</span><div class="stat-number" id="total-calls">—</div></div>
+        <div class="card"><span class="metric-label">Ошибок</span><div class="stat-number" id="total-errors">—</div><button id="goto-errors" type="button" class="text-link">Показать журнал</button></div>
+        <div class="card"><span class="metric-label">Устройств</span><div class="stat-number" id="device-count">—</div></div>
+      </div>
+      <section class="card"><div class="section-heading"><h2>Недавние вызовы</h2><span class="sub">По дням и инструментам</span></div>
+        <div id="usage" aria-live="polite"></div></section>
+      <details class="card errors-collapsed" id="errors-section">
+        <summary class="errors-main-summary"><span class="errors-summary-title">Журнал ошибок <span id="errors-header-count" class="errors-summary-count">—</span></span></summary>
+        <div class="errors-detail-content">
+          <div class="cardhead"><p class="sub">Доступны ошибки ваших устройств.</p><button class="outline" type="button" id="errors-refresh">Обновить</button></div>
+          <div class="error-filters">
+            <label>Устройство<select id="errors-device"><option value="">Все устройства</option></select></label>
+            <label>Инструмент<select id="errors-tool"><option value="">Все инструменты</option></select></label>
+            <label>Период<select id="errors-days"><option value="1">24 часа</option><option value="7">7 дней</option><option value="30" selected>30 дней</option></select></label>
+          </div>
+          <div id="errors-list" class="errors-list" aria-live="polite"><p class="sub">Загрузка журнала…</p></div>
+          <div class="error-pagination"><button type="button" class="outline" id="errors-prev">← Назад</button><span id="errors-page-status" class="sub"></span><button type="button" class="outline" id="errors-next">Вперёд →</button></div>
+          <p class="sub">Трассировки доступны только при отдельно включённой диагностике.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="hub-view" id="view-apps" aria-labelledby="apps-heading" hidden>
+      <div class="view-heading"><div><h1 id="apps-heading">Приложения</h1><p>Подключения через MCP и авторизованные клиенты.</p></div></div>
+      <section class="card">
+        <div class="section-heading"><h2>MCP endpoint</h2><button type="button" class="quiet-button" id="copy-endpoint">Копировать</button></div>
+        <div class="endpoint" id="endpoint"></div>
+        <details class="inline-details"><summary>Пример конфигурации Cursor</summary>
+          <div class="endpoint" id="mcp-example"></div>
+          <p class="sub">В ChatGPT используйте подключение собственного MCP-сервера с OAuth.</p>
+        </details>
+      </section>
+      <section class="card">
+        <div class="section-heading"><h2>Авторизованные приложения</h2><button type="button" class="quiet-button" id="oauth-refresh">Обновить</button></div>
+        <div id="oauth-connections" aria-live="polite"><p class="sub">Загрузка…</p></div>
+        <p class="sub">Проверяйте приложение перед выдачей доступа. Отзыв не затрагивает другие приложения или устройства.</p>
+      </section>
+    </section>
+
+    <section class="hub-view" id="view-settings" aria-labelledby="settings-heading" hidden>
+      <div class="view-heading"><div><h1 id="settings-heading">Настройки</h1><p>Аккаунт и приватность.</p></div></div>
+      <section class="card preference-card">
+        <div class="section-heading"><div><h2>Аккаунт</h2><p id="email" class="sub">Загрузка…</p></div><div id="userbar"></div></div>
+      </section>
+      <section class="card preference-card">
+        <div class="section-heading"><div><h2>Диагностика</h2><p class="sub">Хранение краткой истории вызовов</p></div></div>
+        <label class="toggle"><input type="checkbox" id="diagnostic"> Сохранять названия инструментов и статусы вызовов 7 дней</label>
+        <p class="sub">Полные запросы и ответы доступны только в отдельно включённом режиме трассировки.</p>
+        <div id="diagnostic-events" class="sub"></div>
+      </section>
+      <section class="card" id="admin-panel" hidden>
+        <h2>Статистика администратора</h2><div id="admin-stats"></div>
+      </section>
+    </section>
+
+    <p class="notice hub-global-notice" id="panel-notice" role="status" aria-live="polite"></p>
+  </main>
 </div>
-<div id="errors-list" class="errors-list" aria-live="polite"><p class="sub">Загружаем ошибки…</p></div>
-<div class="error-pagination"><button type="button" class="outline" id="errors-prev">← Назад</button><span id="errors-page-status" class="sub"></span><button type="button" class="outline" id="errors-next">Вперёд →</button></div>
-<p class="sub">История ошибок хранится 30 дней. При включённой полной трассировке можно открыть исходный запрос и ответ; данные других пользователей недоступны.</p>
-</div></details>
-<section class="card"><div class="cardhead"><div><h2>Подключённые устройства</h2><p class="sub">Каждый агент работает только под твоей учётной записью</p></div><button class="primary" id="pair">+ Добавить устройство</button></div>
-<div id="pairing" class="pairing" hidden><b>Код привязки (действует 10 минут)</b><div class="secret" id="pair-code"></div><p class="sub">Введи код в установщик агента на своём компьютере. Никому не отправляй код.</p></div>
-<div id="devices"></div></section>
-<div class="two"><section class="card"><h2>Использование инструментов</h2><p class="sub">Статистика только твоих вызовов, без ограничений</p><div id="usage"></div></section>
-<section class="card"><h2>Приватность и диагностика</h2><p>По умолчанию сохраняются счётчики и краткие причины ошибок. Полные тексты команд и файлов могут записываться только в отдельно включённом режиме диагностики.</p>
-<label class="toggle"><input type="checkbox" id="diagnostic"> Сохранять названия инструментов и статус вызовов 7 дней</label>
-<p class="sub">Другие пользователи не видят ваши устройства и данные. Администратор сервера несёт ответственность за безопасность инфраструктуры.</p>
-<div id="diagnostic-events" class="sub"></div></section></div>
-<section class="card"><h2>Подключение MCP-приложений</h2>
-<p>Один ASC Remote Hub для ChatGPT, Cursor, OpenMausBot и других MCP-клиентов. Укажите HTTPS-адрес в настройках Streamable HTTP MCP нужного приложения и пройдите OAuth-авторизацию под своей учётной записью.</p>
-<div class="endpoint" id="endpoint"></div>
-<p class="sub">В Cursor: <code>mcp.json</code> → <code id="mcp-example"></code>. В ChatGPT: добавить собственный MCP-сервер. Пароли и ключи агентов приложениям не передаются.</p>
-<p class="sub">После OAuth-подключения каждое приложение видит только ваши устройства и выданные им разрешения.</p>
-</section>
-<section class="card"><div class="cardhead"><div><h2>Авторизованные MCP-приложения</h2><p class="sub">Здесь можно отозвать доступ отдельного OAuth-клиента без отключения устройств или других приложений.</p></div>
-<button class="outline" id="oauth-refresh" type="button">Обновить</button></div>
-<div id="oauth-connections" aria-live="polite"><p class="sub">Загрузка подключений…</p></div>
-<p class="sub">Название приложения заявлено им самим. Проверяйте адрес возврата перед выдачей доступа.</p></section>
-<section class="card" id="admin-panel" hidden><h2>Администратор хаба — общая статистика</h2><p class="sub">Без списка пользователей, команд, файлов и содержимого ответов</p><div id="admin-stats"></div></section>
-<p id="panel-notice" class="notice"></p></section>
-</main><footer>ASC Remote Hub — ваши устройства под вашим контролем</footer><script src="/static/common.js" defer></script><script src="/static/dashboard.js" defer></script></body></html>
+<script src="/static/common.js" defer></script>
+<script src="/static/dashboard.js" defer></script>
+</body>
+</html>
