@@ -8,7 +8,7 @@ const root=path.resolve(__dirname,'../server/static');
 class FakeNode {
   constructor(id=''){this.id=id;this.textContent='';this.hidden=false;this.checked=false;
     this.listeners={};this.children=[];this.value='';this.style={};this.attrs={};
-    this.className='';this.classList={toggle:(key,value)=>{this.attrs[key]=value;}};
+    this.className='';this.classList={toggle:(key,value)=>{this.attrs[key]=value;},add:key=>{this.attrs[key]=true;}};
     this.autocomplete='';this.disabled=false;this.open=false;}
   addEventListener(name,callback){this.listeners[name]=callback;}
   append(...children){this.children.push(...children);}
@@ -83,6 +83,8 @@ async function run(){
   assert(signedIn.get('manage-unpair-command').textContent.includes('npx --yes'));
   assert(!signedIn.requests.some(r=>r.endpoint==='/api/usage'),
     'The Devices landing view must not fetch usage statistics');
+  assert.equal(signedIn.get('devices').attrs['aria-busy'],'false');
+  assert.equal(signedIn.get('refresh').disabled,false);
   assert.equal(signedIn.get('userbar').children[0].textContent,'Выйти');
   assert.equal(signedIn.get('view-devices').hidden,false,'Devices is the only default page');
   for(const name of ['connect','usage','apps','settings']){
@@ -97,14 +99,18 @@ async function run(){
   assert.equal(signedIn.get('install-pair-display').hidden,true,'No pairing code until requested');
   await signedIn.get('install-create-pair').listeners.click();
   assert.equal(signedIn.get('install-pair-code').textContent,'TEST_TEST_TEST');
+  assert.equal(signedIn.get('install-create-pair').disabled,false);
   signedIn.get('nav-usage').listeners.click({preventDefault(){}});
   await new Promise(r=>setTimeout(r,10));
   assert.equal(signedIn.get('view-usage').hidden,false);
   assert.equal(signedIn.get('total-calls').textContent,'42');
+  assert.equal(signedIn.get('usage').attrs['aria-busy'],'false');
+  assert.equal(signedIn.get('usage-refresh').disabled,false);
   const callRow=signedIn.get('usage').children[0];
-  assert.equal(callRow.children[0].textContent,'2026-10-25 · run_command');
-  assert.equal(callRow.children[2].children[0].textContent,'42');
-  assert.equal(callRow.children[2].children[1].textContent,'1 ошибка');
+  assert.equal(callRow.children[0].textContent,'25.10.2026');
+  assert.equal(callRow.children[1].textContent,'run_command');
+  assert.equal(callRow.children[2].textContent,'42');
+  assert.equal(callRow.children[3].textContent,'1');
   assert(signedIn.requests.some(r=>r.endpoint==='/api/usage'),
     'Usage statistics must load when their tab opens');
   signedIn.get('nav-apps').listeners.click({preventDefault(){}});

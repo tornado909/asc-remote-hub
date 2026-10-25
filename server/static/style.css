@@ -109,211 +109,545 @@ button.text-link:hover{text-decoration:underline}
 .install-dependencies a{color:#9ecdfb;text-decoration:underline}
 
 
-/* ASC Remote Hub minimalist account workspace (isolated from public login). */
-body.hub-app{--bg:#0e1015;--surface:#181b21;--border:#2a2f39;--txt:#f0f2f8;--muted:#979da9;--accent:#38a3ff;background:var(--bg);font:14px/1.52 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--txt);}
-.hub-app .app-shell{min-height:100vh;display:grid;grid-template-columns:242px minmax(0,1fr);align-items:stretch;}
-.hub-app .hub-sidebar{background:#0b0d12;border-right:1px solid #242832;min-height:100vh;display:flex;flex-direction:column;padding:27px 17px 17px;position:sticky;top:0;height:100vh;}
-.hub-app .hub-logo{display:flex;align-items:center;gap:11px;color:var(--txt);text-decoration:none;padding:0 9px 32px;}
-.hub-app .hub-logo img{display:block;object-fit:contain;width:29px;height:29px;}
-.hub-app .hub-logo span{display:grid;line-height:1.24;gap:3px;}
-.hub-app .hub-logo strong{font-size:15px;font-weight:730;letter-spacing:-.02em;white-space:nowrap;}
-.hub-app .hub-logo small{font-size:11px;color:var(--muted);letter-spacing:.005em;}
-.hub-app .hub-navigation{display:grid;gap:4px;}
-.hub-app .hub-nav{display:flex;align-items:center;gap:13px;padding:11px 12px;color:#9da4b2;text-decoration:none;font-weight:560;border-radius:8px;font-size:13px;transition:background .12s,color .12s;}
-.hub-app .hub-nav:hover{background:#1a1e27;color:var(--txt);}
-.hub-app .hub-nav.active{background:#142739;color:#50b2ff;font-weight:710;}
-.hub-app .nav-glyph{display:inline-flex;align-items:center;justify-content:center;width:19px;font-size:18px;line-height:1;color:inherit;}
-.hub-app .sidebar-bottom{margin-top:auto;border-top:1px solid #242832;padding:18px 7px 0;}
-.hub-app .sidebar-account{display:flex;align-items:center;gap:10px;color:#d9dce6;min-width:0;}
-.hub-app .sidebar-account #account-email{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;flex:1;min-width:0;}
-.hub-app .account-avatar{width:29px;height:29px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;background:#183656;color:#68b7f3;font-size:12px;font-weight:800;}
-.hub-app .sidebar-copyright{font-size:10px;color:#6f7582;margin:15px 0 2px;}
-.hub-app .hub-content{width:100%;max-width:1010px;padding:67px 46px 90px;margin:0 auto;min-width:0;}
-.hub-app .hub-view{max-width:905px;min-width:0;}
-.hub-app .view-heading{display:flex;gap:20px;align-items:flex-start;justify-content:space-between;margin-bottom:28px;}
-.hub-app h1{font-size:29px;line-height:1.13;letter-spacing:-.045em;margin:0 0 7px;font-weight:760;}
-.hub-app .view-heading p{margin:0;font-size:13px;line-height:1.5;color:var(--muted);}
-.hub-app h2{font-size:15px;line-height:1.4;font-weight:730;margin:0;letter-spacing:-.018em;}
-.hub-app .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:none;margin:16px 0 0;padding:23px;}
-.hub-app .hub-view>.view-heading+.card{margin-top:0;}
-.hub-app button.primary{background:#209af4;color:#fff;font-size:13px;padding:10px 15px;border-radius:9px;min-height:40px;font-weight:710;}
-.hub-app button.outline{background:transparent;border:1px solid #444953;color:#d6d8e0;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:590;}
-.hub-app button:hover:not(:disabled){filter:brightness(1.12);}
-.hub-app button:focus-visible,.hub-app a:focus-visible,.hub-app summary:focus-visible,.hub-app select:focus-visible{outline:2px solid #58b7ff;outline-offset:3px;}
-.hub-app .quiet-button{background:transparent;border:0;padding:6px 4px;color:#67b8ff;cursor:pointer;font:600 12px system-ui,sans-serif;}
-.hub-app .quiet-link{color:#66b7ff;text-decoration:none;font-weight:640;font-size:12px;white-space:nowrap;}
-.hub-app .section-heading{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px;}
-.hub-app .tiny-count{font-weight:580;color:#afb5c0;background:#292e37;border-radius:99px;font-size:11px;padding:3px 8px;margin-left:7px;}
-.hub-app .devices-card{padding:0;}
-.hub-app .devices-card .section-heading{padding:17px 21px 12px;margin:0;}
-.hub-app .devices-list{padding:0 5px;}
-.hub-app .devices-list>.sub{padding:14px 20px;}
-.hub-app .rowdevice{display:flex;align-items:center;gap:13px;padding:15px 18px;margin:0 7px;border-bottom:1px solid #30343d;min-width:0;}
-.hub-app .rowdevice:last-child{border-bottom:none;}
-.hub-app .device-indicator{height:9px;width:9px;min-width:9px;border-radius:50%;background:#5b606b;}
-.hub-app .device-indicator.online{background:#3acb92;box-shadow:0 0 0 3px #3acb9112;}
-.hub-app .device-body{flex:1;min-width:0;}
-.hub-app .device-body b{font-size:13px;font-weight:680;display:block;line-height:1.5;}
-.hub-app .device-body small{font-size:11px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.hub-app .pill{border-radius:7px;padding:5px 8px;background:#282b31;color:#9fa4b0;font-size:11px;white-space:nowrap;}
-.hub-app .pill.online{background:#17342b;color:#84ddad;}
-.hub-app .device-menu{position:relative;}
-.hub-app .device-menu>summary{list-style:none;border:1px solid transparent;border-radius:7px;cursor:pointer;padding:3px 8px;color:#aeb3be;font-size:20px;line-height:1.1;min-width:33px;text-align:center;}
-.hub-app .device-menu>summary::-webkit-details-marker{display:none;}
-.hub-app .device-menu[open]>summary,.hub-app .device-menu>summary:hover{border-color:#3b4652;background:#252a33;}
-.hub-app .device-menu-panel{position:absolute;z-index:11;right:0;top:35px;min-width:174px;background:#242932;border:1px solid #3b414d;box-shadow:0 12px 35px #0008;border-radius:9px;padding:5px;}
-.hub-app .device-menu-panel button{display:block;width:100%;text-align:left;border:0;background:transparent;color:#e6b2b2;border-radius:7px;font-size:12px;padding:10px;cursor:pointer;}
-.hub-app .device-menu-panel button:hover{background:#373036;}
-.hub-app .clients-card{padding:6px 20px 3px;}
-.hub-app .clients-card .section-heading{padding:11px 2px 1px;}
-.hub-app .client-line{display:flex;align-items:center;gap:13px;padding:13px 2px;border-bottom:1px solid #30343d;}
-.hub-app .client-line:last-child{border:0;}
-.hub-app .client-icon{display:grid;place-items:center;flex-shrink:0;height:36px;width:36px;border-radius:9px;font-size:19px;font-weight:730;background:#24352e;color:#a0e6d1;}
-.hub-app .client-cursor{background:#2a2d37;color:#dddbe5;}
-.hub-app .client-mcp{background:#272e38;color:#b6c8e9;font-size:10px;}
-.hub-app .client-info{flex:1;min-width:0;}
-.hub-app .client-info b{display:block;font-size:12px;font-weight:660;}
-.hub-app .client-info small{color:var(--muted);display:block;font-size:11px;}
-.hub-app .quick-installer{padding:25px;background:var(--surface);border-color:var(--border);}
-.hub-app .install-controls{margin:0 0 17px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.hub-app .install-switch{background:#101419;border:1px solid #363d48;border-radius:9px;padding:3px;}
-.hub-app .install-os{padding:8px 20px;color:#a5adba;border-radius:6px;font-size:12px;}
-.hub-app .install-os.active{background:#303c4b;color:#fff;}
-.hub-app .install-doc{font-size:11px;}
-.hub-app .main-command{padding:17px;background:#10151d;gap:14px;border-color:#323b47;}
-.hub-app .install-command-text code{font-size:12px;color:#e0e7f2;}
-.hub-app .install-command-area .primary{width:auto;align-self:flex-start;min-width:170px;}
-.hub-app #install-platform-hint{margin:12px 2px 0;}
-.hub-app .connect-divider{border-top:1px solid #30353f;margin:24px 0 18px;}
-.hub-app .install-pair-steps{border:0;padding:0;margin:0;}
-.hub-app .pair-action-row{display:flex;align-items:center;justify-content:space-between;gap:15px;}
-.hub-app .pair-action-row b{display:block;font-size:13px;}
-.hub-app .pair-action-row small{display:block;font-size:11px;color:var(--muted);}
-.hub-app #install-pair-display{margin-top:14px;}
-.hub-app .install-pair-code{margin-bottom:9px;}
-.hub-app .advanced-block{padding:0;overflow:visible;}
-.hub-app .advanced-block>summary{list-style:none;cursor:pointer;padding:17px 22px;font-weight:630;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
-.hub-app .advanced-block>summary::-webkit-details-marker{display:none;}
-.hub-app .advanced-block>summary::after{content:'⌄';color:var(--muted);margin-left:6px;font-size:18px;}
-.hub-app .advanced-block[open]>summary::after{content:'⌃';}
-.hub-app .advanced-content{border-top:1px solid var(--border);padding:18px 22px 22px;}
-.hub-app .advanced-block .install-dependencies{margin:0;border:0;background:transparent;}
-.hub-app .advanced-content .install-command-area{padding:13px;margin:12px 0;}
-.hub-app .advanced-content .install-command-area code{font-size:11px;line-height:1.6;overflow-wrap:anywhere;}
-.hub-app .manage-commands{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;}
-.hub-app .manage-operation{padding:13px;background:#11161f;border-radius:9px;}
-.hub-app .manage-operation b{font-size:12px;}
-.hub-app .stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0;}
-.hub-app .stats>.card{margin:0;padding:21px;}
-.hub-app .metric-label{color:var(--muted);font-size:12px;}
-.hub-app .stat-number{font-size:35px;font-weight:760;letter-spacing:-.055em;margin-top:8px;}
-.hub-app .errors-collapsed{margin-top:16px;}
-.hub-app .errors-summary-title{font-size:15px;font-weight:720;}
-.hub-app #usage{max-height:none;}
-.hub-app .usage-row{display:flex;align-items:center;gap:15px;padding:11px 4px;}
-.hub-app .usage-row .usage-value{white-space:nowrap;font-size:12px;}
-.hub-app .usage-row .usage-info{flex:1;min-width:0;font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.hub-app .usage-row .usage-bar{flex:0 0 86px;height:5px;background:#2b3340;border-radius:8px;overflow:hidden;}
-.hub-app .usage-row .usage-bar>span{display:block;height:100%;background:#329ef0;border-radius:8px;}
-.hub-app .endpoint{padding:15px;background:#10151d;border:1px solid #323b48;color:#c7ddf3;font-size:12px;}
-.hub-app .inline-details{margin-top:15px;}
-.hub-app .inline-details summary{color:#95b9db;cursor:pointer;font-size:12px;}
-.hub-app .inline-details .endpoint{margin-top:12px;}
-.hub-app .preference-card{padding:22px;}
-.hub-app .preference-card .section-heading{margin:0;}
-.hub-app .preference-card .section-heading p{margin:4px 0 0;}
-.hub-app .toggle{margin:17px 0 8px;font-size:13px;color:#d1d5dc;}
-.hub-app #userbar button{font-size:12px;}
-.hub-app .notice{font-size:12px;min-height:0;}
-.hub-app .hub-global-notice{margin-top:15px;}
-@media(max-width:900px){
- .hub-app .app-shell{grid-template-columns:198px minmax(0,1fr);}
- .hub-app .hub-sidebar{padding:23px 11px 14px;}
- .hub-app .hub-content{padding:44px 25px 70px;}
- .hub-app .hub-logo{padding-left:9px;padding-right:0;}
+/* Account workspace: utilitarian, restrained and independent of public auth UI. */
+body.hub-app {
+  --bg: #0e1216;
+  --surface: #171d23;
+  --border: #303942;
+  --txt: #eaf0f4;
+  --muted: #a3adb6;
+  --accent: #77baf1;
+  --hub-soft: #89949e;
+  --hub-raised: #1d252d;
+  --hub-hover: #222b34;
+  --hub-active: #263440;
+  --hub-success: #63d7a5;
+  --hub-danger: #e6a4a4;
+  background: var(--bg);
+  color: var(--txt);
+  font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
 }
-@media(max-width:700px){
- .hub-app .app-shell{display:block;}
- .hub-app .hub-sidebar{min-height:0;height:auto;position:sticky;z-index:15;top:0;padding:11px 14px 8px;border-right:none;border-bottom:1px solid #292e38;background:#0b0d12eF;backdrop-filter:blur(12px);}
- .hub-app .hub-logo{padding:0 2px 9px;}
- .hub-app .hub-logo img{width:23px;height:23px;}
- .hub-app .hub-logo strong{font-size:13px;}
- .hub-app .hub-logo small{display:none;}
- .hub-app .hub-navigation{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;}
- .hub-app .hub-navigation::-webkit-scrollbar{display:none;}
- .hub-app .hub-nav{font-size:11px;white-space:nowrap;padding:8px 11px;gap:6px;}
- .hub-app .nav-glyph{font-size:13px;width:auto;}
- .hub-app .sidebar-bottom{display:none;}
- .hub-app .hub-content{padding:26px 14px 48px;}
- .hub-app .view-heading{align-items:flex-start;gap:14px;margin-bottom:20px;}
- .hub-app h1{font-size:25px;}
- .hub-app .view-heading>button{white-space:nowrap;font-size:12px;padding:9px;}
- .hub-app .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
- .hub-app .stats .card:last-child{grid-column:span 2;}
- .hub-app .card{margin-top:12px;padding:18px;}
- .hub-app .devices-card{padding:0;}
- .hub-app .rowdevice{padding:12px 8px;margin:0 6px;gap:9px;}
- .hub-app .device-body small{font-size:10px;}
- .hub-app .device-menu-panel{min-width:150px;}
- .hub-app .manage-commands{grid-template-columns:1fr;}
- .hub-app .install-command-area .primary{width:100%;align-self:stretch;}
- .hub-app .advanced-block{padding:0;}
- .hub-app .advanced-content{padding:14px;}
- .hub-app .error-filters{grid-template-columns:1fr;}
+.hub-app .app-shell {
+  display: grid;
+  grid-template-columns: 222px minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 100vh;
 }
-@media(max-width:400px){
- .hub-app .hub-nav{padding:7px 8px;font-size:10px;}
- .hub-app .view-heading{flex-wrap:wrap;}
- .hub-app .view-heading>button{margin-left:auto;}
- .hub-app .pill{font-size:10px;padding:4px 6px;}
- .hub-app .clients-card{padding:5px 14px;}
+.hub-app .hub-sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  padding: 30px 16px 22px;
+  background: #10151a;
+  border-right: 1px solid var(--border);
 }
-
-/* Panel spacing: adjacent cards must not collapse when element types differ. */
-.hub-app .hub-view>.card{margin-top:18px;}
-.hub-app .hub-view>.view-heading+.card{margin-top:0;}
-.hub-app #view-usage>.stats+.card{margin-top:20px;}
-.hub-app #view-usage>.errors-collapsed{margin-top:18px;}
-.hub-app .main-command{padding:20px 18px;}
-.hub-app .pair-action-row{min-height:42px;align-items:center;}
-.hub-app .pair-action-row .outline{margin:0;flex-shrink:0;}
-
-/* Accordion labels are a single left-aligned block, with the chevron on the right. */
-.hub-app .advanced-block>summary{min-height:76px;padding:16px 22px;gap:16px;}
-.hub-app .advanced-label{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;}
-.hub-app .advanced-label strong{font-size:13px;line-height:1.35;font-weight:700;color:var(--txt);}
-.hub-app .advanced-label small{font-size:12px;line-height:1.4;font-weight:400;color:var(--muted);}
-.hub-app .advanced-block>summary::after{margin-left:auto;flex:none;align-self:center;}
-
-/* Consistent metric rhythm. */
-.hub-app .stats>.card{min-height:151px;padding:23px 24px;display:flex;flex-direction:column;align-items:flex-start;}
-.hub-app .metric-label{display:block;margin-bottom:15px;line-height:1.4;}
-.hub-app .stat-number{margin:0;line-height:1.12;font-variant-numeric:tabular-nums;}
-.hub-app .stats .text-link{margin-top:13px;padding:0;line-height:1.35;}
-
-/* Calls: align counts and failure labels without squeezing the tool name. */
-.hub-app .usage-row{display:grid;grid-template-columns:minmax(0,1fr) 78px 140px;align-items:center;gap:14px;min-height:45px;padding:12px 3px;}
-.hub-app .usage-row .usage-info{font-size:12px;line-height:1.45;}
-.hub-app .usage-row .usage-bar{width:78px;height:5px;flex:none;opacity:.8;}
-.hub-app .usage-row .usage-value{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;min-width:0;text-align:right;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;}
-.hub-app .usage-row .usage-count{font-weight:700;color:var(--txt);}
-.hub-app .usage-row .usage-errors{font-size:11px;font-weight:500;color:#dfa89f;}
-
-/* Errors accordion: title, separate count badge, and independent chevron. */
-.hub-app .errors-main-summary{display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:72px;padding:18px 24px;}
-.hub-app .errors-summary-title{line-height:1.4;flex:none;}
-.hub-app .errors-summary-count{display:inline-flex;align-items:center;justify-content:center;min-width:34px;margin:0;padding:3px 10px;line-height:1.4;font-variant-numeric:tabular-nums;}
-.hub-app .errors-main-summary::after{margin-left:auto;flex:none;}
-
-@media(max-width:700px){
-  .hub-app .stats>.card{min-height:140px;padding:19px;}
-  .hub-app .usage-row{grid-template-columns:minmax(0,1fr) auto;gap:10px;min-height:44px;padding:11px 0;}
-  .hub-app .usage-row .usage-bar{display:none;}
-  .hub-app .usage-row .usage-value{width:auto;}
-  .hub-app .advanced-block>summary{padding:15px 18px;}
-  .hub-app .errors-main-summary{padding:17px 18px;}
+.hub-app .hub-logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 10px 36px;
+  color: var(--txt);
+  text-decoration: none;
 }
-@media(max-width:400px){
-  .hub-app .pair-action-row{flex-wrap:wrap;gap:11px;}
-  .hub-app .usage-row .usage-errors{font-size:10px;}
+.hub-app .hub-logo img { display: block; width: 26px; height: 26px; object-fit: contain; }
+.hub-app .hub-logo strong {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.022em;
+  white-space: nowrap;
+}
+.hub-app .hub-navigation { display: grid; gap: 3px; }
+.hub-app .hub-nav {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 7px;
+  color: #abb6bf;
+  font-size: 13px;
+  font-weight: 520;
+  text-decoration: none;
+  transition: background-color .12s ease, color .12s ease;
+}
+.hub-app .hub-nav:hover { background: var(--hub-hover); color: var(--txt); }
+.hub-app .hub-nav.active {
+  color: #e5f4ff;
+  background: var(--hub-active);
+  box-shadow: inset 2px 0 var(--accent);
+  font-weight: 650;
+}
+.hub-app .sidebar-bottom {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 18px 12px 0;
+  min-width: 0;
+}
+.hub-app #account-email {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hub-app .hub-content {
+  width: 100%;
+  max-width: 1110px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 58px 54px 96px;
+}
+.hub-app .hub-view { width: 100%; min-width: 0; }
+.hub-app .view-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 22px;
+  margin-bottom: 28px;
+}
+.hub-app h1 {
+  margin: 0 0 7px;
+  font-size: clamp(27px, 2.5vw, 32px);
+  line-height: 1.19;
+  font-weight: 710;
+  letter-spacing: -.034em;
+}
+.hub-app .view-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.hub-app h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 660;
+  letter-spacing: -.015em;
+  line-height: 1.4;
+}
+.hub-app p { color: var(--muted); }
+.hub-app .sub { color: var(--muted); font-size: 12px; }
+.hub-app .card {
+  padding: 23px 25px;
+  margin: 18px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: none;
+}
+.hub-app .hub-view > .view-heading + .card { margin-top: 0; }
+.hub-app .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.hub-app .section-heading .sub { margin: 0; }
+.hub-app .tiny-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: #2a333c;
+  color: #ccd4db;
+  font-size: 12px;
+  font-weight: 580;
+  font-variant-numeric: tabular-nums;
+}
+.hub-app button.primary {
+  min-height: 42px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #1c70ac;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 680;
+}
+.hub-app button.primary:hover:not(:disabled) { background: #247bb4; }
+.hub-app button.outline {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid #485460;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--txt);
+  font-size: 12px;
+  font-weight: 590;
+}
+.hub-app button.outline:hover:not(:disabled) { background: var(--hub-hover); }
+.hub-app button:disabled { opacity: .55; cursor: not-allowed; }
+.hub-app :is(button, a, input, select, summary):focus-visible {
+  outline: 2px solid #a1d0f6;
+  outline-offset: 3px;
+}
+.hub-app .quiet-button {
+  padding: 7px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: 600 12px/1.5 system-ui, sans-serif;
+  cursor: pointer;
+}
+.hub-app .quiet-link {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 620;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.hub-app .quiet-link:hover { text-decoration: underline; }
+.hub-app .notice { color: #efabab; font-size: 12px; min-height: 0; }
+.hub-app .notice:empty, .hub-app .hub-global-notice:empty { display: none; }
+.hub-app .hub-global-notice { margin: 18px 0 0; }
+
+/* Devices: only the device list is a framed primary panel. */
+.hub-app .devices-card { padding: 0; }
+.hub-app .devices-card > .section-heading { margin: 0; padding: 17px 22px 12px; }
+.hub-app .devices-list { padding: 0 7px 7px; }
+.hub-app .devices-list > :is(.sub, .notice) { margin: 0; padding: 17px 16px 22px; }
+.hub-app .rowdevice {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  margin: 0 7px;
+  padding: 15px 9px;
+  border-bottom: 1px solid var(--border);
+}
+.hub-app .rowdevice:last-child { border-bottom: none; }
+.hub-app .device-indicator {
+  flex: 0 0 8px;
+  width: 8px; height: 8px;
+  background: #747e87;
+  border-radius: 50%;
+}
+.hub-app .device-indicator.online { background: var(--hub-success); }
+.hub-app .device-body { flex: 1; min-width: 0; }
+.hub-app .device-body b { display: block; font-size: 14px; font-weight: 640; line-height: 1.45; }
+.hub-app .device-body small {
+  display: block;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hub-app .pill {
+  flex: none;
+  border-radius: 5px;
+  background: #293039;
+  color: #c0c9d1;
+  padding: 4px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.hub-app .pill.online { background: #1d3c32; color: #8ce3b5; }
+.hub-app .device-menu { position: relative; flex: none; }
+.hub-app .device-menu > summary {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 5px 9px;
+  list-style: none;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 19px;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+}
+.hub-app .device-menu > summary::-webkit-details-marker { display: none; }
+.hub-app .device-menu[open] > summary, .hub-app .device-menu > summary:hover {
+  border-color: var(--border);
+  background: var(--hub-hover);
+}
+.hub-app .device-menu-panel {
+  position: absolute;
+  z-index: 12;
+  top: 37px;
+  right: 0;
+  min-width: 185px;
+  padding: 6px;
+  border: 1px solid #47515b;
+  border-radius: 8px;
+  background: #242c34;
+  box-shadow: 0 12px 32px #0008;
+}
+.hub-app .device-menu-panel button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #efb4b4;
+  font-size: 12px;
+  text-align: left;
+}
+.hub-app .device-menu-panel button:hover { background: #39343a; }
+
+/* Secondary destinations are simple list rows, not extra dashboard cards. */
+.hub-app .clients-card {
+  margin-top: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.hub-app .clients-card > .section-heading { margin: 0; padding: 0 2px 13px; }
+.hub-app .client-line {
+  display: flex;
+  align-items: center;
+  min-height: 62px;
+  gap: 16px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.hub-app .client-line:last-child { border-bottom: none; }
+.hub-app .client-info { flex: 1; min-width: 0; }
+.hub-app .client-info b { display: block; color: var(--txt); font-size: 14px; font-weight: 630; }
+.hub-app .client-info small { display: block; color: var(--muted); font-size: 12px; }
+
+/* Onboarding: one primary command, then pair code; advanced actions are rows. */
+.hub-app .quick-installer { padding: 25px; }
+.hub-app .install-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 20px;
+}
+.hub-app .install-switch { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: #11171d; }
+.hub-app .install-os { width: auto; padding: 9px 19px; border: 0; border-radius: 5px; color: var(--muted); font-size: 12px; }
+.hub-app .install-os.active { background: #303b46; color: var(--txt); }
+.hub-app .install-doc { color: var(--accent); font-size: 12px; white-space: nowrap; }
+.hub-app .main-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid #37434d;
+  border-radius: 9px;
+  background: #11181e;
+}
+.hub-app .install-command-text { display: flex; align-items: flex-start; min-width: 0; gap: 11px; }
+.hub-app .install-prompt { color: var(--hub-success); font-weight: 730; }
+.hub-app .install-command-text code {
+  color: #e5ecf1;
+  font: 550 12px/1.75 ui-monospace, "Cascadia Code", Consolas, monospace;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.hub-app .main-command .primary { width: auto; min-width: 142px; align-self: center; }
+.hub-app #install-platform-hint { margin: 13px 0 0; font-size: 12px; }
+.hub-app .connect-divider { border-top: 1px solid var(--border); margin: 27px 0 21px; }
+.hub-app .install-pair-steps { padding: 0; border: 0; margin: 0; }
+.hub-app .pair-action-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.hub-app .pair-action-row b { display: block; font-size: 14px; font-weight: 650; }
+.hub-app .pair-action-row small { display: block; color: var(--muted); font-size: 12px; }
+.hub-app #install-pair-display { margin-top: 17px; }
+.hub-app .install-pair-code { gap: 12px; }
+.hub-app .install-pair-code code { min-width: 0; }
+.hub-app .advanced-block {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+.hub-app #install-advanced { margin-top: 18px; border-top: 1px solid var(--border); }
+.hub-app .advanced-block > summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 73px;
+  padding: 14px 5px;
+  list-style: none;
+  cursor: pointer;
+}
+.hub-app .advanced-block > summary::-webkit-details-marker { display: none; }
+.hub-app .advanced-label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hub-app .advanced-label strong { color: var(--txt); font-size: 13px; font-weight: 640; }
+.hub-app .advanced-label small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.hub-app .advanced-block > summary::after { content: "⌄"; margin-left: auto; flex: none; color: var(--muted); font-size: 18px; }
+.hub-app .advanced-block[open] > summary::after { content: "⌃"; }
+.hub-app .advanced-content { padding: 5px 5px 21px; }
+.hub-app .advanced-content .sub { line-height: 1.6; }
+.hub-app .advanced-block .install-dependencies { background: none; border: 0; margin: 0; }
+.hub-app .advanced-content .install-command-area { padding: 14px; margin: 12px 0; border: 1px solid var(--border); background: #131a20; }
+.hub-app .advanced-content .install-command-area code { font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.hub-app .manage-commands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.hub-app .manage-operation { min-width: 0; padding: 15px; border-radius: 8px; background: #161d23; border: 1px solid var(--border); }
+.hub-app .manage-operation b { font-size: 12px; font-weight: 630; }
+.hub-app .manage-operation .install-command-area { margin: 12px 0 0; }
+.hub-app .install-command-area .primary, .hub-app .install-command-area .outline { align-self: flex-start; }
+
+/* Usage: one quiet metric strip and an actual table. */
+.hub-app .stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+}
+.hub-app .metric { min-width: 0; padding: 23px 25px; }
+.hub-app .metric + .metric { border-left: 1px solid var(--border); }
+.hub-app .metric-label { display: block; margin: 0 0 15px; color: var(--muted); font-size: 12px; }
+.hub-app .stat-number { margin: 0; color: var(--txt); font-size: 32px; line-height: 1.2; font-weight: 680; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.hub-app .stats .text-link { display: block; padding: 6px 0 0; color: var(--accent); font-size: 12px; }
+.hub-app #view-usage > .stats + .card { margin-top: 22px; }
+.hub-app .usage-card { padding: 21px 23px 9px; }
+.hub-app .usage-card .section-heading { margin-bottom: 15px; }
+.hub-app .usage-table { width: 100%; border-collapse: collapse; table-layout: fixed; color: var(--txt); }
+.hub-app .usage-table th {
+  padding: 10px 10px 10px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 540;
+  text-align: left;
+}
+.hub-app .usage-table th:nth-child(1) { width: 102px; }
+.hub-app .usage-table th:nth-child(3) { width: 96px; }
+.hub-app .usage-table th:nth-child(4) { width: 76px; }
+.hub-app .usage-table th.numeric { text-align: right; }
+.hub-app .usage-table td {
+  padding: 11px 10px 11px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.hub-app .usage-table tr:last-child td { border-bottom: 0; }
+.hub-app .usage-table .usage-date { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hub-app .usage-table .usage-tool { overflow-wrap: anywhere; font-weight: 560; }
+.hub-app .usage-table .usage-calls, .hub-app .usage-table .usage-errors { text-align: right; font-variant-numeric: tabular-nums; }
+.hub-app .usage-table .usage-errors { color: var(--hub-danger); }
+.hub-app .usage-table .usage-errors.no-errors { color: #707c87; }
+.hub-app .usage-table .table-empty { padding: 26px 0; color: var(--muted); text-align: center; }
+.hub-app #usage { max-height: none; overflow: visible; }
+.hub-app #view-usage > .errors-collapsed { margin-top: 19px; }
+.hub-app .errors-collapsed { padding: 0; overflow: hidden; }
+.hub-app .errors-main-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 64px;
+  padding: 16px 22px;
+}
+.hub-app .errors-summary-title { font-size: 14px; font-weight: 650; }
+.hub-app .errors-summary-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 33px;
+  margin-left: 0;
+  padding: 3px 9px;
+  border: 1px solid #434e58;
+  border-radius: 5px;
+  color: #dbe3e9;
+  background: #29333d;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.hub-app .errors-main-summary::after { margin-left: auto; color: var(--muted); }
+.hub-app .errors-detail-content { padding: 16px 23px 23px; }
+.hub-app .error-filters select { background: #141c22; border-color: var(--border); }
+
+/* OAuth connections and account settings. */
+.hub-app .endpoint { padding: 14px; border-color: var(--border); background: #11181e; color: #d5e3f0; font-size: 12px; }
+.hub-app .inline-details { margin-top: 17px; }
+.hub-app .inline-details summary { color: var(--accent); cursor: pointer; font-size: 12px; }
+.hub-app .inline-details .endpoint { margin-top: 11px; }
+.hub-app .preference-card { padding: 22px 24px; }
+.hub-app .preference-card .section-heading { margin: 0; }
+.hub-app .preference-card .section-heading p { margin: 5px 0 0; }
+.hub-app .toggle { margin: 19px 0 12px; color: var(--txt); font-size: 13px; }
+.hub-app .toggle input { accent-color: #2d91d4; }
+.hub-app #userbar button { font-size: 12px; }
+
+@media (max-width: 960px) {
+  .hub-app .app-shell { grid-template-columns: 198px minmax(0, 1fr); }
+  .hub-app .hub-content { padding: 44px 31px 72px; }
+  .hub-app .hub-sidebar { padding: 23px 11px 17px; }
+}
+@media (max-width: 700px) {
+  .hub-app .app-shell { display: block; }
+  .hub-app .hub-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: auto;
+    min-height: 0;
+    padding: 11px 14px 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    background: #10151af2;
+    backdrop-filter: blur(10px);
+  }
+  .hub-app .hub-logo { padding: 0 2px 9px; }
+  .hub-app .hub-logo img { width: 24px; height: 24px; }
+  .hub-app .hub-logo strong { font-size: 14px; }
+  .hub-app .sidebar-bottom { display: none; }
+  .hub-app .hub-navigation { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  .hub-app .hub-navigation::-webkit-scrollbar { display: none; }
+  .hub-app .hub-nav { flex: none; min-height: 38px; padding: 9px 12px; font-size: 12px; white-space: nowrap; }
+  .hub-app .hub-content { padding: 31px 19px 60px; }
+  .hub-app .view-heading { gap: 15px; margin-bottom: 22px; }
+  .hub-app h1 { font-size: 27px; }
+  .hub-app .card { padding: 19px; }
+  .hub-app .devices-card { padding: 0; }
+  .hub-app .devices-list { padding: 0 5px 5px; }
+  .hub-app .rowdevice { margin: 0 4px; padding: 13px 9px; gap: 9px; }
+  .hub-app .device-body b { font-size: 13px; }
+  .hub-app .device-body small { font-size: 12px; }
+  .hub-app .manage-commands { grid-template-columns: 1fr; }
+  .hub-app .metric { padding: 18px 16px; }
+  .hub-app .stat-number { font-size: 28px; }
+  .hub-app .usage-card { padding: 19px 17px 9px; }
+}
+@media (max-width: 530px) {
+  .hub-app .view-heading { flex-wrap: wrap; }
+  .hub-app .view-heading > button { margin-left: 0; }
+  .hub-app .quick-installer { padding: 19px; }
+  .hub-app .install-controls { flex-wrap: wrap; gap: 12px; }
+  .hub-app .main-command { grid-template-columns: 1fr; gap: 15px; padding: 17px; }
+  .hub-app .main-command .primary { width: 100%; }
+  .hub-app .pair-action-row { flex-wrap: wrap; gap: 12px; }
+  .hub-app .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hub-app .metric { padding: 16px 18px; }
+  .hub-app .metric + .metric { border-left: 1px solid var(--border); }
+  .hub-app .metric:nth-child(3) { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border); }
+  .hub-app .usage-table thead { display: none; }
+  .hub-app .usage-table, .hub-app .usage-table tbody { display: block; }
+  .hub-app .usage-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "tool calls" "date errors";
+    gap: 2px 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .hub-app .usage-table tr:last-child { border-bottom: 0; }
+  .hub-app .usage-table td { padding: 0; border: 0; }
+  .hub-app .usage-table .usage-tool { grid-area: tool; }
+  .hub-app .usage-table .usage-date { grid-area: date; }
+  .hub-app .usage-table .usage-calls { grid-area: calls; font-weight: 670; }
+  .hub-app .usage-table .usage-errors { grid-area: errors; font-size: 12px; }
+  .hub-app .usage-table tr:has(.table-empty) { display: block; }
+  .hub-app .usage-table .table-empty { display: block; }
+  .hub-app .error-filters { grid-template-columns: 1fr; }
+  .hub-app .errors-detail-content { padding: 15px; }
+  .hub-app .client-info small { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-app *, .hub-app *::before, .hub-app *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

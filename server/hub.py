@@ -31,7 +31,7 @@ import ipaddress
 from traffic_trace import TrafficTrace
 from distribution import build_distributions, CLI, AGENT
 
-VERSION = "1.2.9"
+VERSION = "1.3.0"
 PROTOCOLS = {"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
 MAX_REQUEST = 9 * 1024 * 1024
 MAX_JSON = 9 * 1024 * 1024

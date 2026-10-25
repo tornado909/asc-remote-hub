@@ -90,8 +90,8 @@ class MinimalDashboardTests(unittest.TestCase):
 
     def test_responsive_compact_layout_and_accessibility(self):
         self.assertIn("@media(max-width:700px)",CSS)
-        self.assertIn(".hub-app .hub-navigation{display:flex;",CSS)
-        self.assertIn("button:focus-visible",CSS)
+        self.assertRegex(CSS,r"\.hub-app \.hub-navigation\s*\{\s*display:\s*flex")
+        self.assertIn("):focus-visible",CSS)
         self.assertIn("aria-label=\"Главная навигация\"",HTML)
         self.assertIn("role=\"status\"",HTML)
         self.assertIn("class=\"hub-sidebar\"",HTML)
