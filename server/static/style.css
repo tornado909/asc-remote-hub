@@ -135,7 +135,7 @@ body.hub-app{--bg:#0e1015;--surface:#181b21;--border:#2a2f39;--txt:#f0f2f8;--mut
 .hub-app .view-heading p{margin:0;font-size:13px;line-height:1.5;color:var(--muted);}
 .hub-app h2{font-size:15px;line-height:1.4;font-weight:730;margin:0;letter-spacing:-.018em;}
 .hub-app .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:none;margin:16px 0 0;padding:23px;}
-.hub-app .hub-view>.card:first-of-type{margin-top:0;}
+.hub-app .hub-view>.view-heading+.card{margin-top:0;}
 .hub-app button.primary{background:#209af4;color:#fff;font-size:13px;padding:10px 15px;border-radius:9px;min-height:40px;font-weight:710;}
 .hub-app button.outline{background:transparent;border:1px solid #444953;color:#d6d8e0;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:590;}
 .hub-app button:hover:not(:disabled){filter:brightness(1.12);}
@@ -267,4 +267,53 @@ body.hub-app{--bg:#0e1015;--surface:#181b21;--border:#2a2f39;--txt:#f0f2f8;--mut
  .hub-app .view-heading>button{margin-left:auto;}
  .hub-app .pill{font-size:10px;padding:4px 6px;}
  .hub-app .clients-card{padding:5px 14px;}
+}
+
+/* Panel spacing: adjacent cards must not collapse when element types differ. */
+.hub-app .hub-view>.card{margin-top:18px;}
+.hub-app .hub-view>.view-heading+.card{margin-top:0;}
+.hub-app #view-usage>.stats+.card{margin-top:20px;}
+.hub-app #view-usage>.errors-collapsed{margin-top:18px;}
+.hub-app .main-command{padding:20px 18px;}
+.hub-app .pair-action-row{min-height:42px;align-items:center;}
+.hub-app .pair-action-row .outline{margin:0;flex-shrink:0;}
+
+/* Accordion labels are a single left-aligned block, with the chevron on the right. */
+.hub-app .advanced-block>summary{min-height:76px;padding:16px 22px;gap:16px;}
+.hub-app .advanced-label{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;}
+.hub-app .advanced-label strong{font-size:13px;line-height:1.35;font-weight:700;color:var(--txt);}
+.hub-app .advanced-label small{font-size:12px;line-height:1.4;font-weight:400;color:var(--muted);}
+.hub-app .advanced-block>summary::after{margin-left:auto;flex:none;align-self:center;}
+
+/* Consistent metric rhythm. */
+.hub-app .stats>.card{min-height:151px;padding:23px 24px;display:flex;flex-direction:column;align-items:flex-start;}
+.hub-app .metric-label{display:block;margin-bottom:15px;line-height:1.4;}
+.hub-app .stat-number{margin:0;line-height:1.12;font-variant-numeric:tabular-nums;}
+.hub-app .stats .text-link{margin-top:13px;padding:0;line-height:1.35;}
+
+/* Calls: align counts and failure labels without squeezing the tool name. */
+.hub-app .usage-row{display:grid;grid-template-columns:minmax(0,1fr) 78px 140px;align-items:center;gap:14px;min-height:45px;padding:12px 3px;}
+.hub-app .usage-row .usage-info{font-size:12px;line-height:1.45;}
+.hub-app .usage-row .usage-bar{width:78px;height:5px;flex:none;opacity:.8;}
+.hub-app .usage-row .usage-value{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;min-width:0;text-align:right;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;}
+.hub-app .usage-row .usage-count{font-weight:700;color:var(--txt);}
+.hub-app .usage-row .usage-errors{font-size:11px;font-weight:500;color:#dfa89f;}
+
+/* Errors accordion: title, separate count badge, and independent chevron. */
+.hub-app .errors-main-summary{display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:72px;padding:18px 24px;}
+.hub-app .errors-summary-title{line-height:1.4;flex:none;}
+.hub-app .errors-summary-count{display:inline-flex;align-items:center;justify-content:center;min-width:34px;margin:0;padding:3px 10px;line-height:1.4;font-variant-numeric:tabular-nums;}
+.hub-app .errors-main-summary::after{margin-left:auto;flex:none;}
+
+@media(max-width:700px){
+  .hub-app .stats>.card{min-height:140px;padding:19px;}
+  .hub-app .usage-row{grid-template-columns:minmax(0,1fr) auto;gap:10px;min-height:44px;padding:11px 0;}
+  .hub-app .usage-row .usage-bar{display:none;}
+  .hub-app .usage-row .usage-value{width:auto;}
+  .hub-app .advanced-block>summary{padding:15px 18px;}
+  .hub-app .errors-main-summary{padding:17px 18px;}
+}
+@media(max-width:400px){
+  .hub-app .pair-action-row{flex-wrap:wrap;gap:11px;}
+  .hub-app .usage-row .usage-errors{font-size:10px;}
 }
