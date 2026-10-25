@@ -18,7 +18,7 @@ function navigate(view,updateHash=true){
   if(updateHash && location.hash!=='#'+view)location.hash='#'+view;
   document.title=HUB_TITLES[view]+' · ASC Remote Hub';
   if(changed && view==='apps')refreshOAuthConnections();
-  if(changed && view==='usage' && $('errors-section').open)refreshErrors();
+  if(changed && view==='usage')refreshUsage();
   if(changed && typeof window!=='undefined' && window.scrollTo)window.scrollTo(0,0);
 }
 for(const tab of HUB_VIEWS){
@@ -28,7 +28,7 @@ if(typeof window!=='undefined'){
   window.addEventListener('hashchange',()=>navigate((location.hash||'#devices').slice(1),false));
 }
 $('refresh').addEventListener('click',()=>refreshPanel());
-$('usage-refresh').addEventListener('click',()=>refreshPanel());
+$('usage-refresh').addEventListener('click',()=>refreshUsage());
 $('pair').addEventListener('click',()=>navigate('connect'));
 $('open-apps').addEventListener('click',()=>navigate('apps'));
 $('copy-endpoint').addEventListener('click',async()=>{try{
@@ -94,7 +94,12 @@ function deviceEntry(d){
   const subtitle=document.createElement('small');
   const platform=(d.platform||'').toLowerCase().startsWith('windows')?'Windows':
     (d.platform||'').toLowerCase().startsWith('linux')?'Linux':(d.platform||'ОС неизвестна');
-  subtitle.textContent=platform+' · '+d.id;
+  const seen=Number(d.last_seen||0);
+  const lastSeen=(!d.online && Number.isFinite(seen) && seen>0)
+    ? ' · Последняя связь '+new Date(seen*1000).toLocaleString('ru-RU',{
+        day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+    : '';
+  subtitle.textContent=platform+lastSeen+' · '+d.id;
   subtitle.title=d.platform||d.id;
   info.append(title,subtitle);
   const status=document.createElement('span');status.className='pill'+(d.online?' online':'');
@@ -119,33 +124,54 @@ function deviceEntry(d){
   node.append(dot,info,status,menu);
   return node;
 }
-async function refreshPanel(){try{
- const [dv,usage]=await Promise.all([api('/api/devices'),api('/api/usage')]);text('total-calls',usage.total.toLocaleString('ru-RU'));text('total-errors',usage.errors.toLocaleString('ru-RU'));text('errors-header-count',usage.errors.toLocaleString('ru-RU'));text('device-count',dv.devices.length);text('devices-total',dv.devices.length);
- const elements=$('devices');elements.replaceChildren();if(!dv.devices.length){const p=document.createElement('p');p.textContent='Устройств пока нет. Нажми «Добавить устройство», чтобы получить одноразовый код привязки.';elements.append(p);}dv.devices.forEach(d=>elements.append(deviceEntry(d)));
- const rows=$('usage');rows.replaceChildren();
- if(!usage.daily.length){
-   const p=document.createElement('p');p.className='sub';
-   p.textContent='Первых вызовов ещё не было.';rows.append(p);
- }
- const maxCalls=Math.max(1,...usage.daily.map(row=>row.calls));
- usage.daily.slice(0,16).forEach(row=>{
-   const el=document.createElement('div');el.className='usage-row';
-   const title=document.createElement('span');title.className='usage-info';
-   title.textContent=row.day+' · '+row.tool;
-   const bar=document.createElement('span');bar.className='usage-bar';
-   bar.setAttribute('aria-hidden','true');
-   const fill=document.createElement('span');
-   fill.style.width=Math.max(1,Math.round(row.calls/maxCalls*100))+'%';bar.append(fill);
-   const num=document.createElement('b');num.className='usage-value';
-   num.textContent=row.calls+(row.errors?' / ошибок: '+row.errors:'');
-   el.append(title,bar,num);rows.append(el);
- });
- errorFilterOptions('errors-device',dv.devices.map(d=>({value:d.id,label:d.name})),'Все устройства');
- const errorTools=[...new Set(usage.daily.filter(x=>x.errors>0).map(x=>x.tool))].sort();
- errorFilterOptions('errors-tool',errorTools.map(x=>({value:x,label:x})),'Все инструменты');
- if(currentView==='apps')await refreshOAuthConnections();
- if(currentView==='usage' && $('errors-section').open)await refreshErrors();
- }catch(err){notice('panel-notice',err.message)}}
+async function refreshPanel(){
+  try{
+    const dv=await api('/api/devices');
+    const devices=dv.devices;
+    text('device-count',devices.length);
+    text('devices-total',devices.length);
+    const elements=$('devices');
+    elements.replaceChildren();
+    if(!devices.length){
+      const p=document.createElement('p');p.className='sub';
+      p.textContent='Устройств пока нет. Нажмите «Добавить устройство», чтобы получить код привязки.';
+      elements.append(p);
+    }
+    devices.forEach(d=>elements.append(deviceEntry(d)));
+    errorFilterOptions('errors-device',devices.map(d=>({value:d.id,label:d.name})),'Все устройства');
+    if(currentView==='usage')await refreshUsage();
+    if(currentView==='apps')await refreshOAuthConnections();
+  }catch(err){notice('panel-notice',err.message);}
+}
+
+async function refreshUsage(){
+  try{
+    const usage=await api('/api/usage');
+    text('total-calls',usage.total.toLocaleString('ru-RU'));
+    text('total-errors',usage.errors.toLocaleString('ru-RU'));
+    text('errors-header-count',usage.errors.toLocaleString('ru-RU'));
+    const rows=$('usage');rows.replaceChildren();
+    if(!usage.daily.length){
+      const p=document.createElement('p');p.className='sub';
+      p.textContent='Первых вызовов ещё не было.';rows.append(p);
+    }
+    const maxCalls=Math.max(1,...usage.daily.map(row=>row.calls));
+    usage.daily.slice(0,16).forEach(row=>{
+      const el=document.createElement('div');el.className='usage-row';
+      const label=document.createElement('span');label.className='usage-info';
+      label.textContent=row.day+' · '+row.tool;
+      const bar=document.createElement('span');bar.className='usage-bar';bar.setAttribute('aria-hidden','true');
+      const fill=document.createElement('span');
+      fill.style.width=Math.max(1,Math.round(row.calls/maxCalls*100))+'%';bar.append(fill);
+      const num=document.createElement('b');num.className='usage-value';
+      num.textContent=row.calls+(row.errors?' / ошибок: '+row.errors:'');
+      el.append(label,bar,num);rows.append(el);
+    });
+    const errorTools=[...new Set(usage.daily.filter(x=>x.errors>0).map(x=>x.tool))].sort();
+    errorFilterOptions('errors-tool',errorTools.map(x=>({value:x,label:x})),'Все инструменты');
+    if(currentView==='usage' && $('errors-section').open)await refreshErrors();
+  }catch(err){notice('panel-notice',err.message);}
+}
 
 const ERROR_PAGE_SIZE=15;
 let errorOffset=0;

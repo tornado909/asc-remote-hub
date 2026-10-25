@@ -31,7 +31,7 @@ import ipaddress
 from traffic_trace import TrafficTrace
 from distribution import build_distributions, CLI, AGENT
 
-VERSION = "1.2.7"
+VERSION = "1.2.8"
 PROTOCOLS = {"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
 MAX_REQUEST = 9 * 1024 * 1024
 MAX_JSON = 9 * 1024 * 1024
@@ -400,7 +400,8 @@ class Hub:
             info = json.loads(d["info"])
             result.append({"id": d["id"], "name": d["name"], "online": time.time()-d["last_seen"] < 50,
                            "platform": info.get("platform", "unknown"),
-                           "tools": json.loads(d["tools"]), "registered": int(d["registered"])})
+                           "tools": json.loads(d["tools"]), "registered": int(d["registered"]),
+                           "last_seen": int(d["last_seen"] or 0)})
         return result
 
     def agent_identity(self, device_id: str, token: str) -> dict:

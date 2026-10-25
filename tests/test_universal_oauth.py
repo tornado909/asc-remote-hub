@@ -7,7 +7,7 @@ import unittest
 from urllib.parse import parse_qs,urlparse
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'server'))
-from hub import Hub,Failure,pkce,valid_oauth_redirect
+from hub import Hub,Failure,pkce,valid_oauth_redirect,VERSION
 
 class UniversalOAuthTests(unittest.TestCase):
     def setUp(self):
@@ -106,7 +106,7 @@ class UniversalOAuthTests(unittest.TestCase):
         self.assertEqual(owner['id'],self.user['id'])
         mcp=self.hub.mcp(owner,{'jsonrpc':'2.0','id':7,'method':'initialize',
             'params':{'protocolVersion':'2025-11-25'}})
-        self.assertEqual(mcp['result']['serverInfo']['version'],'1.2.7')
+        self.assertEqual(mcp['result']['serverInfo']['version'],VERSION)
         self.assertEqual(mcp['result']['capabilities']['tools']['listChanged'],False)
         tool_list=self.hub.mcp(owner,{'jsonrpc':'2.0','id':8,'method':'tools/list'})
         self.assertGreater(len(tool_list['result']['tools']),20)
