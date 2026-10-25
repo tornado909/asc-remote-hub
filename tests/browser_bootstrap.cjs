@@ -22,6 +22,7 @@ function setup(view,{session=true,badLogin=false}={}){
   const ids=new Map();
   const get=id=>{if(!ids.has(id))ids.set(id,new FakeNode(id));return ids.get(id);};
   get('errors-days').value='30';
+  get('install-pair-display').hidden=true;
   get('auth-email').value='person@example.test';
   get('auth-password').value='test-password';
   const replaced=[],requests=[];
@@ -32,6 +33,7 @@ function setup(view,{session=true,badLogin=false}={}){
       csrf:'csrf-abc',diagnostic:false,is_admin:false};
     else if(endpoint==='/api/devices') data={devices:[]};
     else if(endpoint==='/api/usage') data={total:4,errors:1,daily:[]};
+    else if(endpoint==='/api/oauth/connections') data={connections:[]};
     else if(endpoint.startsWith('/api/errors?')) data={total:1,events:[],offset:0,has_more:false};
     else if(endpoint==='/api/login' && badLogin){status=401;data={error:'Invalid credentials'};}
     else if(endpoint==='/api/register' || endpoint==='/api/login')data={ok:true,csrf:'newcsrf'};
@@ -52,7 +54,7 @@ function setup(view,{session=true,badLogin=false}={}){
     {timeout:2000,filename});
   load('common.js');
   load(view==='auth'?'auth.js':'dashboard.js');
-  return {get,replaced,requests};
+  return {get,replaced,requests,location:context.location};
 }
 
 async function run(){
@@ -81,6 +83,29 @@ async function run(){
   assert(signedIn.get('manage-unpair-command').textContent.includes('npx --yes'));
   assert.equal(signedIn.get('total-calls').textContent,'4');
   assert.equal(signedIn.get('userbar').children[0].textContent,'Выйти');
+  assert.equal(signedIn.get('view-devices').hidden,false,'Devices is the only default page');
+  for(const name of ['connect','usage','apps','settings']){
+    assert.equal(signedIn.get('view-'+name).hidden,true,'Other pages hidden by default: '+name);
+  }
+  assert(!signedIn.requests.some(r=>r.endpoint==='/api/oauth/connections'),
+    'OAuth data should be lazy-loaded');
+  await signedIn.get('pair').listeners.click();
+  assert.equal(signedIn.location.hash,'#connect');
+  assert.equal(signedIn.get('view-devices').hidden,true);
+  assert.equal(signedIn.get('view-connect').hidden,false);
+  assert.equal(signedIn.get('install-pair-display').hidden,true,'No pairing code until requested');
+  await signedIn.get('install-create-pair').listeners.click();
+  assert.equal(signedIn.get('install-pair-code').textContent,'TEST_TEST_TEST');
+  signedIn.get('nav-usage').listeners.click({preventDefault(){}});
+  assert.equal(signedIn.get('view-usage').hidden,false);
+  assert.equal(signedIn.get('total-calls').textContent,'4');
+  signedIn.get('nav-apps').listeners.click({preventDefault(){}});
+  await new Promise(r=>setTimeout(r,10));
+  assert.equal(signedIn.get('view-apps').hidden,false);
+  assert(signedIn.requests.some(r=>r.endpoint==='/api/oauth/connections'),
+    'Only opening Apps should fetch OAuth connections');
+  signedIn.get('nav-settings').listeners.click({preventDefault(){}});
+  assert.equal(signedIn.get('view-settings').hidden,false);
   await signedIn.get('userbar').listeners.click({target:{id:'logout'}});
   assert.deepEqual(signedIn.replaced,['/']);
   assert(signedIn.requests.some(r=>r.endpoint==='/api/logout'

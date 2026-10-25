@@ -107,3 +107,164 @@ button.text-link:hover{text-decoration:underline}
 .install-dependencies .install-command-area code{display:block;font:12px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all;color:#e8f0fd}
 .install-dependencies .install-command-area button{align-self:flex-start}
 .install-dependencies a{color:#9ecdfb;text-decoration:underline}
+
+
+/* ASC Remote Hub minimalist account workspace (isolated from public login). */
+body.hub-app{--bg:#0e1015;--surface:#181b21;--border:#2a2f39;--txt:#f0f2f8;--muted:#979da9;--accent:#38a3ff;background:var(--bg);font:14px/1.52 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--txt);}
+.hub-app .app-shell{min-height:100vh;display:grid;grid-template-columns:242px minmax(0,1fr);align-items:stretch;}
+.hub-app .hub-sidebar{background:#0b0d12;border-right:1px solid #242832;min-height:100vh;display:flex;flex-direction:column;padding:27px 17px 17px;position:sticky;top:0;height:100vh;}
+.hub-app .hub-logo{display:flex;align-items:center;gap:11px;color:var(--txt);text-decoration:none;padding:0 9px 32px;}
+.hub-app .hub-logo img{display:block;object-fit:contain;width:29px;height:29px;}
+.hub-app .hub-logo span{display:grid;line-height:1.24;gap:3px;}
+.hub-app .hub-logo strong{font-size:15px;font-weight:730;letter-spacing:-.02em;white-space:nowrap;}
+.hub-app .hub-logo small{font-size:11px;color:var(--muted);letter-spacing:.005em;}
+.hub-app .hub-navigation{display:grid;gap:4px;}
+.hub-app .hub-nav{display:flex;align-items:center;gap:13px;padding:11px 12px;color:#9da4b2;text-decoration:none;font-weight:560;border-radius:8px;font-size:13px;transition:background .12s,color .12s;}
+.hub-app .hub-nav:hover{background:#1a1e27;color:var(--txt);}
+.hub-app .hub-nav.active{background:#142739;color:#50b2ff;font-weight:710;}
+.hub-app .nav-glyph{display:inline-flex;align-items:center;justify-content:center;width:19px;font-size:18px;line-height:1;color:inherit;}
+.hub-app .sidebar-bottom{margin-top:auto;border-top:1px solid #242832;padding:18px 7px 0;}
+.hub-app .sidebar-account{display:flex;align-items:center;gap:10px;color:#d9dce6;min-width:0;}
+.hub-app .sidebar-account #account-email{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;flex:1;min-width:0;}
+.hub-app .account-avatar{width:29px;height:29px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;background:#183656;color:#68b7f3;font-size:12px;font-weight:800;}
+.hub-app .sidebar-copyright{font-size:10px;color:#6f7582;margin:15px 0 2px;}
+.hub-app .hub-content{width:100%;max-width:1010px;padding:67px 46px 90px;margin:0 auto;min-width:0;}
+.hub-app .hub-view{max-width:905px;min-width:0;}
+.hub-app .view-heading{display:flex;gap:20px;align-items:flex-start;justify-content:space-between;margin-bottom:28px;}
+.hub-app h1{font-size:29px;line-height:1.13;letter-spacing:-.045em;margin:0 0 7px;font-weight:760;}
+.hub-app .view-heading p{margin:0;font-size:13px;line-height:1.5;color:var(--muted);}
+.hub-app h2{font-size:15px;line-height:1.4;font-weight:730;margin:0;letter-spacing:-.018em;}
+.hub-app .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:none;margin:16px 0 0;padding:23px;}
+.hub-app .hub-view>.card:first-of-type{margin-top:0;}
+.hub-app button.primary{background:#209af4;color:#fff;font-size:13px;padding:10px 15px;border-radius:9px;min-height:40px;font-weight:710;}
+.hub-app button.outline{background:transparent;border:1px solid #444953;color:#d6d8e0;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:590;}
+.hub-app button:hover:not(:disabled){filter:brightness(1.12);}
+.hub-app button:focus-visible,.hub-app a:focus-visible,.hub-app summary:focus-visible,.hub-app select:focus-visible{outline:2px solid #58b7ff;outline-offset:3px;}
+.hub-app .quiet-button{background:transparent;border:0;padding:6px 4px;color:#67b8ff;cursor:pointer;font:600 12px system-ui,sans-serif;}
+.hub-app .quiet-link{color:#66b7ff;text-decoration:none;font-weight:640;font-size:12px;white-space:nowrap;}
+.hub-app .section-heading{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px;}
+.hub-app .tiny-count{font-weight:580;color:#afb5c0;background:#292e37;border-radius:99px;font-size:11px;padding:3px 8px;margin-left:7px;}
+.hub-app .devices-card{padding:0;}
+.hub-app .devices-card .section-heading{padding:17px 21px 12px;margin:0;}
+.hub-app .devices-list{padding:0 5px;}
+.hub-app .devices-list>.sub{padding:14px 20px;}
+.hub-app .rowdevice{display:flex;align-items:center;gap:13px;padding:15px 18px;margin:0 7px;border-bottom:1px solid #30343d;min-width:0;}
+.hub-app .rowdevice:last-child{border-bottom:none;}
+.hub-app .device-indicator{height:9px;width:9px;min-width:9px;border-radius:50%;background:#5b606b;}
+.hub-app .device-indicator.online{background:#3acb92;box-shadow:0 0 0 3px #3acb9112;}
+.hub-app .device-body{flex:1;min-width:0;}
+.hub-app .device-body b{font-size:13px;font-weight:680;display:block;line-height:1.5;}
+.hub-app .device-body small{font-size:11px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hub-app .pill{border-radius:7px;padding:5px 8px;background:#282b31;color:#9fa4b0;font-size:11px;white-space:nowrap;}
+.hub-app .pill.online{background:#17342b;color:#84ddad;}
+.hub-app .device-menu{position:relative;}
+.hub-app .device-menu>summary{list-style:none;border:1px solid transparent;border-radius:7px;cursor:pointer;padding:3px 8px;color:#aeb3be;font-size:20px;line-height:1.1;min-width:33px;text-align:center;}
+.hub-app .device-menu>summary::-webkit-details-marker{display:none;}
+.hub-app .device-menu[open]>summary,.hub-app .device-menu>summary:hover{border-color:#3b4652;background:#252a33;}
+.hub-app .device-menu-panel{position:absolute;z-index:11;right:0;top:35px;min-width:174px;background:#242932;border:1px solid #3b414d;box-shadow:0 12px 35px #0008;border-radius:9px;padding:5px;}
+.hub-app .device-menu-panel button{display:block;width:100%;text-align:left;border:0;background:transparent;color:#e6b2b2;border-radius:7px;font-size:12px;padding:10px;cursor:pointer;}
+.hub-app .device-menu-panel button:hover{background:#373036;}
+.hub-app .clients-card{padding:6px 20px 3px;}
+.hub-app .clients-card .section-heading{padding:11px 2px 1px;}
+.hub-app .client-line{display:flex;align-items:center;gap:13px;padding:13px 2px;border-bottom:1px solid #30343d;}
+.hub-app .client-line:last-child{border:0;}
+.hub-app .client-icon{display:grid;place-items:center;flex-shrink:0;height:36px;width:36px;border-radius:9px;font-size:19px;font-weight:730;background:#24352e;color:#a0e6d1;}
+.hub-app .client-cursor{background:#2a2d37;color:#dddbe5;}
+.hub-app .client-mcp{background:#272e38;color:#b6c8e9;font-size:10px;}
+.hub-app .client-info{flex:1;min-width:0;}
+.hub-app .client-info b{display:block;font-size:12px;font-weight:660;}
+.hub-app .client-info small{color:var(--muted);display:block;font-size:11px;}
+.hub-app .quick-installer{padding:25px;background:var(--surface);border-color:var(--border);}
+.hub-app .install-controls{margin:0 0 17px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.hub-app .install-switch{background:#101419;border:1px solid #363d48;border-radius:9px;padding:3px;}
+.hub-app .install-os{padding:8px 20px;color:#a5adba;border-radius:6px;font-size:12px;}
+.hub-app .install-os.active{background:#303c4b;color:#fff;}
+.hub-app .install-doc{font-size:11px;}
+.hub-app .main-command{padding:17px;background:#10151d;gap:14px;border-color:#323b47;}
+.hub-app .install-command-text code{font-size:12px;color:#e0e7f2;}
+.hub-app .install-command-area .primary{width:auto;align-self:flex-start;min-width:170px;}
+.hub-app #install-platform-hint{margin:12px 2px 0;}
+.hub-app .connect-divider{border-top:1px solid #30353f;margin:24px 0 18px;}
+.hub-app .install-pair-steps{border:0;padding:0;margin:0;}
+.hub-app .pair-action-row{display:flex;align-items:center;justify-content:space-between;gap:15px;}
+.hub-app .pair-action-row b{display:block;font-size:13px;}
+.hub-app .pair-action-row small{display:block;font-size:11px;color:var(--muted);}
+.hub-app #install-pair-display{margin-top:14px;}
+.hub-app .install-pair-code{margin-bottom:9px;}
+.hub-app .advanced-block{padding:0;overflow:visible;}
+.hub-app .advanced-block>summary{list-style:none;cursor:pointer;padding:17px 22px;font-weight:630;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.hub-app .advanced-block>summary::-webkit-details-marker{display:none;}
+.hub-app .advanced-block>summary::after{content:'⌄';color:var(--muted);margin-left:6px;font-size:18px;}
+.hub-app .advanced-block[open]>summary::after{content:'⌃';}
+.hub-app .advanced-content{border-top:1px solid var(--border);padding:18px 22px 22px;}
+.hub-app .advanced-block .install-dependencies{margin:0;border:0;background:transparent;}
+.hub-app .advanced-content .install-command-area{padding:13px;margin:12px 0;}
+.hub-app .advanced-content .install-command-area code{font-size:11px;line-height:1.6;overflow-wrap:anywhere;}
+.hub-app .manage-commands{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;}
+.hub-app .manage-operation{padding:13px;background:#11161f;border-radius:9px;}
+.hub-app .manage-operation b{font-size:12px;}
+.hub-app .stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0;}
+.hub-app .stats>.card{margin:0;padding:21px;}
+.hub-app .metric-label{color:var(--muted);font-size:12px;}
+.hub-app .stat-number{font-size:35px;font-weight:760;letter-spacing:-.055em;margin-top:8px;}
+.hub-app .errors-collapsed{margin-top:16px;}
+.hub-app .errors-summary-title{font-size:15px;font-weight:720;}
+.hub-app #usage{max-height:none;}
+.hub-app .usage-row{display:flex;align-items:center;gap:15px;padding:11px 4px;}
+.hub-app .usage-row .usage-value{white-space:nowrap;font-size:12px;}
+.hub-app .usage-row .usage-info{flex:1;min-width:0;font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hub-app .usage-row .usage-bar{flex:0 0 86px;height:5px;background:#2b3340;border-radius:8px;overflow:hidden;}
+.hub-app .usage-row .usage-bar>span{display:block;height:100%;background:#329ef0;border-radius:8px;}
+.hub-app .endpoint{padding:15px;background:#10151d;border:1px solid #323b48;color:#c7ddf3;font-size:12px;}
+.hub-app .inline-details{margin-top:15px;}
+.hub-app .inline-details summary{color:#95b9db;cursor:pointer;font-size:12px;}
+.hub-app .inline-details .endpoint{margin-top:12px;}
+.hub-app .preference-card{padding:22px;}
+.hub-app .preference-card .section-heading{margin:0;}
+.hub-app .preference-card .section-heading p{margin:4px 0 0;}
+.hub-app .toggle{margin:17px 0 8px;font-size:13px;color:#d1d5dc;}
+.hub-app #userbar button{font-size:12px;}
+.hub-app .notice{font-size:12px;min-height:0;}
+.hub-app .hub-global-notice{margin-top:15px;}
+@media(max-width:900px){
+ .hub-app .app-shell{grid-template-columns:198px minmax(0,1fr);}
+ .hub-app .hub-sidebar{padding:23px 11px 14px;}
+ .hub-app .hub-content{padding:44px 25px 70px;}
+ .hub-app .hub-logo{padding-left:9px;padding-right:0;}
+}
+@media(max-width:700px){
+ .hub-app .app-shell{display:block;}
+ .hub-app .hub-sidebar{min-height:0;height:auto;position:sticky;z-index:15;top:0;padding:11px 14px 8px;border-right:none;border-bottom:1px solid #292e38;background:#0b0d12eF;backdrop-filter:blur(12px);}
+ .hub-app .hub-logo{padding:0 2px 9px;}
+ .hub-app .hub-logo img{width:23px;height:23px;}
+ .hub-app .hub-logo strong{font-size:13px;}
+ .hub-app .hub-logo small{display:none;}
+ .hub-app .hub-navigation{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;}
+ .hub-app .hub-navigation::-webkit-scrollbar{display:none;}
+ .hub-app .hub-nav{font-size:11px;white-space:nowrap;padding:8px 11px;gap:6px;}
+ .hub-app .nav-glyph{font-size:13px;width:auto;}
+ .hub-app .sidebar-bottom{display:none;}
+ .hub-app .hub-content{padding:26px 14px 48px;}
+ .hub-app .view-heading{align-items:flex-start;gap:14px;margin-bottom:20px;}
+ .hub-app h1{font-size:25px;}
+ .hub-app .view-heading>button{white-space:nowrap;font-size:12px;padding:9px;}
+ .hub-app .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+ .hub-app .stats .card:last-child{grid-column:span 2;}
+ .hub-app .card{margin-top:12px;padding:18px;}
+ .hub-app .devices-card{padding:0;}
+ .hub-app .rowdevice{padding:12px 8px;margin:0 6px;gap:9px;}
+ .hub-app .device-body small{font-size:10px;}
+ .hub-app .device-menu-panel{min-width:150px;}
+ .hub-app .manage-commands{grid-template-columns:1fr;}
+ .hub-app .install-command-area .primary{width:100%;align-self:stretch;}
+ .hub-app .advanced-block{padding:0;}
+ .hub-app .advanced-content{padding:14px;}
+ .hub-app .error-filters{grid-template-columns:1fr;}
+}
+@media(max-width:400px){
+ .hub-app .hub-nav{padding:7px 8px;font-size:10px;}
+ .hub-app .view-heading{flex-wrap:wrap;}
+ .hub-app .view-heading>button{margin-left:auto;}
+ .hub-app .pill{font-size:10px;padding:4px 6px;}
+ .hub-app .clients-card{padding:5px 14px;}
+}
