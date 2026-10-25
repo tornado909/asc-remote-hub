@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import tempfile
 
-FLAGS = ("enabled", "capture", "gpu_test")
+FLAGS = ("enabled", "capture", "gpu_test", "open_vocab")
 
 
 def default_config() -> Path:
@@ -53,7 +53,8 @@ def effective_policy(config: dict) -> dict[str, bool]:
     enabled = allowed and game["enabled"]
     return {"enabled": enabled,
             "capture": enabled and game["capture"],
-            "gpu_test": enabled and game["gpu_test"]}
+            "gpu_test": enabled and game["gpu_test"],
+            "open_vocab": enabled and game["capture"] and game["open_vocab"]}
 
 
 def update_policy(config: dict, flag: str, value: bool) -> dict:
@@ -67,10 +68,15 @@ def update_policy(config: dict, flag: str, value: bool) -> dict:
         raise RuntimeError("Game Agent requires local GUI and execution permissions")
     if value and flag != "enabled" and not effective["enabled"]:
         raise RuntimeError("Enable ASC Game Agent before changing GPU/capture policy")
+    if value and flag == "open_vocab" and not effective["capture"]:
+        raise RuntimeError("Enable locally consented capture before Universal Vision v22")
     game[flag] = value
+    if flag == "capture" and not value:
+        game["open_vocab"] = False
     if flag == "enabled" and not value:
         game["capture"] = False
         game["gpu_test"] = False
+        game["open_vocab"] = False
     config = dict(config)
     config["game_agent"] = game
     return config

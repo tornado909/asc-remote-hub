@@ -1882,5 +1882,66 @@
         ]
       }
     ]
+  },
+  {
+    "name": "game_agent_open_vocab",
+    "description": "RESEARCH v22: request 2..12 WGC frames from one verified HWND for GPU-only YOLO-World open-vocabulary proposals. Requires separately enabled LOCAL Universal Vision and capture settings plus a physical native Windows YES for each request. Returns only uncalibrated bounded metadata, not screenshots, OCR, UI understanding or gameplay actions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "string",
+          "description": "Exact HWND from game_agent_targets"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "Exact process PID from game_agent_targets",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "process_start_ticks": {
+          "type": "integer",
+          "description": "Process creation FILETIME from game_agent_targets",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "frames": {
+          "type": "integer",
+          "description": "2..12 frames (research maximum)",
+          "minimum": 2,
+          "maximum": 12
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Raw uncalibrated model confidence threshold",
+          "minimum": 0.01,
+          "maximum": 1.0
+        }
+      },
+      "required": [
+        "device",
+        "hwnd",
+        "pid",
+        "process_start_ticks"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
   }
 ]

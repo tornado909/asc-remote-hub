@@ -66,6 +66,7 @@ class Agent:
         self.allow_gui = enabled("ASC_RC_ALLOW_GUI")
         # A separate local opt-in for experimental, user-consented Game Agent.
         self.allow_game_agent = enabled("ASC_RC_ALLOW_GAME_AGENT")
+        self.allow_game_agent_open_vocab = enabled("ASC_RC_ALLOW_GAME_AGENT_OPEN_VOCAB")
         self._game_agent_backend = None
         # GUI capability does NOT imply permission to hijack the user's active
         # desktop. This flag must be set LOCALLY in the agent environment.
@@ -292,6 +293,15 @@ class Agent:
                               "On-demand WGC/DirectML test of a TEMPORARY window created by the native test worker. Needs local ASC_RC_ALLOW_GAME_AGENT_GPU_TEST=1. Never captures third-party windows.",
                               {"frames":num("2..32 frames",2,32)},
                               self.game_agent_gpu_selftest,read_only=False)
+                    if self.allow_game_agent_open_vocab:
+                        self._add("game_agent_open_vocab",
+                                  "EXPERIMENTAL v22 GPU-only open-vocabulary detection for one exact HWND. Requires separate LOCAL v22 opt-in plus native Windows YES consent each time. Only bounded metadata returned; no images, UI understanding or input automation.",
+                                  {**target_identity,
+                                   "frames":num("2..12 frames",2,12),
+                                   "threshold":{"type":"number","minimum":0.01,"maximum":1.0}},
+                                  self.game_agent_open_vocab,
+                                  required=["hwnd","pid","process_start_ticks"],
+                                  read_only=False)
                 self._add("window_list", "Enumerate visible titled windows in the current Windows desktop (HWND, PID, bounds, foreground).",
                           {"limit":num("Max windows",1,100)},self.window_list)
                 self._add("window_focus", "INTERACTIVE fallback: forcibly foregrounds a verified window and can disturb the user. Requires explicit allow_desktop_interference=true. Prefer background window_action.",
@@ -824,6 +834,13 @@ class Agent:
 
     def game_agent_gpu_selftest(self,a:dict[str,Any])->dict[str,Any]:
         return self._game_agent().fixture(checked_int(a.get("frames",8),2,32))
+
+    def game_agent_open_vocab(self,a:dict[str,Any])->dict[str,Any]:
+        if not self.allow_game_agent_open_vocab:
+            raise AccessDenied("Local v22 Universal Vision opt-in is required")
+        return self._game_agent().open_vocab(
+            a.get("hwnd"),a.get("pid"),a.get("process_start_ticks"),
+            checked_int(a.get("frames",4),2,12),a.get("threshold",0.25))
 
     def window_list(self,a:dict[str,Any])->dict[str,Any]:
         ctypes,wintypes,user32=self._windows()
