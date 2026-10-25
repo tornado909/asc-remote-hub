@@ -76,6 +76,8 @@ $('install-deps-copy').addEventListener('click',()=>copyInstallValue(
 if($('install-copy-pair')) $('install-copy-pair').addEventListener('click',()=>copyInstallValue(
   $('install-pair-code').textContent,'Код скопирован. Вставьте его в установщик.'));
 async function issuePairCode(){
+  const button=$('install-create-pair');
+  if(button)button.disabled=true;
   try{
     const x=await api('/api/devices/pair',{method:'POST',body:'{}'});
     if($('pair-code')) text('pair-code',x.pairing_code);
@@ -86,6 +88,8 @@ async function issuePairCode(){
   }catch(err){
     notice('install-notice','Не удалось получить код: '+err.message);
     if($('panel-notice')) notice('panel-notice',err.message);
+  }finally{
+    if(button)button.disabled=false;
   }
 }
 if($('install-create-pair')) $('install-create-pair').addEventListener('click',issuePairCode);

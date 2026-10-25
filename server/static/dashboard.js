@@ -125,6 +125,10 @@ function deviceEntry(d){
   return node;
 }
 async function refreshPanel(){
+  const host=$('devices');
+  const refresh=$('refresh');
+  host.setAttribute('aria-busy','true');
+  refresh.disabled=true;
   try{
     const dv=await api('/api/devices');
     const devices=dv.devices;
@@ -141,42 +145,70 @@ async function refreshPanel(){
     errorFilterOptions('errors-device',devices.map(d=>({value:d.id,label:d.name})),'Все устройства');
     if(currentView==='usage')await refreshUsage();
     if(currentView==='apps')await refreshOAuthConnections();
-  }catch(err){notice('panel-notice',err.message);}
+  }catch(err){
+    host.replaceChildren();
+    const msg=document.createElement('p');
+    msg.className='notice';
+    msg.textContent='Не удалось загрузить устройства: '+err.message;
+    host.append(msg);
+    notice('panel-notice',err.message);
+  }finally{
+    host.setAttribute('aria-busy','false');
+    refresh.disabled=false;
+  }
 }
 
 async function refreshUsage(){
+  const rows=$('usage');
+  const refresh=$('usage-refresh');
+  rows.setAttribute('aria-busy','true');
+  refresh.disabled=true;
   try{
     const usage=await api('/api/usage');
     text('total-calls',usage.total.toLocaleString('ru-RU'));
     text('total-errors',usage.errors.toLocaleString('ru-RU'));
     text('errors-header-count',usage.errors.toLocaleString('ru-RU'));
-    const rows=$('usage');rows.replaceChildren();
-    if(!usage.daily.length){
-      const p=document.createElement('p');p.className='sub';
-      p.textContent='Первых вызовов ещё не было.';rows.append(p);
+    rows.replaceChildren();
+    const records=usage.daily.slice(0,16);
+    if(!records.length){
+      const tr=document.createElement('tr');
+      const td=document.createElement('td');
+      td.className='table-empty';
+      td.colSpan=4;
+      td.textContent='Вызовов пока нет.';
+      tr.append(td);
+      rows.append(tr);
     }
-    const maxCalls=Math.max(1,...usage.daily.map(row=>row.calls));
-    usage.daily.slice(0,16).forEach(row=>{
-      const el=document.createElement('div');el.className='usage-row';
-      const label=document.createElement('span');label.className='usage-info';
-      label.textContent=row.day+' · '+row.tool;
-      const bar=document.createElement('span');bar.className='usage-bar';bar.setAttribute('aria-hidden','true');
-      const fill=document.createElement('span');
-      fill.style.width=Math.max(1,Math.round(row.calls/maxCalls*100))+'%';bar.append(fill);
-      const num=document.createElement('span');num.className='usage-value';
-      const count=document.createElement('strong');count.className='usage-count';
-      count.textContent=row.calls.toLocaleString('ru-RU');num.append(count);
-      if(row.errors){
-        const err=document.createElement('span');err.className='usage-errors';
-        err.textContent=row.errors===1?'1 ошибка':row.errors+' ош.';
-        num.append(err);
-      }
-      el.append(label,bar,num);rows.append(el);
+    records.forEach(row=>{
+      const tr=document.createElement('tr');
+      const day=document.createElement('td');day.className='usage-date';
+      const parts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(row.day||'');
+      day.textContent=parts?parts[3]+'.'+parts[2]+'.'+parts[1]:String(row.day||'');
+      const tool=document.createElement('td');tool.className='usage-tool';
+      tool.textContent=row.tool;
+      const count=document.createElement('td');count.className='usage-calls';
+      count.textContent=Number(row.calls).toLocaleString('ru-RU');
+      const err=document.createElement('td');err.className='usage-errors';
+      err.textContent=row.errors?Number(row.errors).toLocaleString('ru-RU'):'—';
+      if(!row.errors)err.classList.add('no-errors');
+      tr.append(day,tool,count,err);
+      rows.append(tr);
     });
     const errorTools=[...new Set(usage.daily.filter(x=>x.errors>0).map(x=>x.tool))].sort();
     errorFilterOptions('errors-tool',errorTools.map(x=>({value:x,label:x})),'Все инструменты');
     if(currentView==='usage' && $('errors-section').open)await refreshErrors();
-  }catch(err){notice('panel-notice',err.message);}
+  }catch(err){
+    rows.replaceChildren();
+    const tr=document.createElement('tr');
+    const td=document.createElement('td');
+    td.colSpan=4;td.className='table-empty';
+    td.textContent='Не удалось загрузить статистику.';
+    tr.append(td);rows.append(tr);
+    notice('panel-notice',err.message);
+  }finally{
+    rows.setAttribute('aria-busy','false');
+    refresh.disabled=false;
+  }
 }
 
 const ERROR_PAGE_SIZE=15;

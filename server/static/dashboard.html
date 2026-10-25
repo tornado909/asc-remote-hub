@@ -15,29 +15,23 @@
   <aside class="hub-sidebar" aria-label="Главная навигация">
     <a class="hub-logo" href="#devices" aria-label="ASC Remote Hub — устройства">
       <img src="/static/brand-mark.png" width="30" height="30" alt="">
-      <span><strong>ASC Remote Hub</strong><small>Remote MCP</small></span>
+      <span><strong>ASC Remote Hub</strong></span>
     </a>
     <nav class="hub-navigation" aria-label="Разделы">
-      <a href="#devices" class="hub-nav active" id="nav-devices" aria-current="page"><span class="nav-glyph" aria-hidden="true">▣</span>Устройства</a>
-      <a href="#connect" class="hub-nav" id="nav-connect"><span class="nav-glyph" aria-hidden="true">＋</span>Подключение</a>
-      <a href="#usage" class="hub-nav" id="nav-usage"><span class="nav-glyph" aria-hidden="true">▥</span>Статистика</a>
-      <a href="#apps" class="hub-nav" id="nav-apps"><span class="nav-glyph" aria-hidden="true">◇</span>Приложения</a>
-      <a href="#settings" class="hub-nav" id="nav-settings"><span class="nav-glyph" aria-hidden="true">⚙</span>Настройки</a>
+      <a href="#devices" class="hub-nav active" id="nav-devices" aria-current="page">Устройства</a>
+      <a href="#connect" class="hub-nav" id="nav-connect">Подключение</a>
+      <a href="#usage" class="hub-nav" id="nav-usage">Статистика</a>
+      <a href="#apps" class="hub-nav" id="nav-apps">Приложения</a>
+      <a href="#settings" class="hub-nav" id="nav-settings">Настройки</a>
     </nav>
-    <div class="sidebar-bottom">
-      <div class="sidebar-account">
-        <span class="account-avatar" aria-hidden="true">A</span>
-        <span id="account-email">Аккаунт</span>
-      </div>
-      <div class="sidebar-copyright">ASC Remote Hub</div>
-    </div>
+    <div class="sidebar-bottom"><span id="account-email">Аккаунт</span></div>
   </aside>
 
   <main class="hub-content" id="hub-main">
     <section class="hub-view" id="view-devices" aria-labelledby="devices-heading">
       <div class="view-heading">
         <div><h1 id="devices-heading">Устройства</h1><p>Компьютеры, доступные вашим MCP-приложениям.</p></div>
-        <button class="primary" type="button" id="pair">＋ Добавить устройство</button>
+        <button class="primary" type="button" id="pair">Добавить устройство</button>
       </div>
       <section class="card devices-card" aria-labelledby="device-list-heading">
         <div class="section-heading">
@@ -50,17 +44,14 @@
       <section class="card clients-card" aria-labelledby="clients-heading">
         <div class="section-heading"><h2 id="clients-heading">Где использовать</h2></div>
         <div class="client-line">
-          <span class="client-icon client-chat" aria-hidden="true">✳</span>
           <div class="client-info"><b>ChatGPT</b><small>Доступ через MCP и вашу учётную запись</small></div>
           <a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer" class="quiet-link">Открыть ↗</a>
         </div>
         <div class="client-line">
-          <span class="client-icon client-cursor" aria-hidden="true">⌘</span>
           <div class="client-info"><b>Cursor</b><small>Добавьте адрес MCP в настройках</small></div>
           <a href="https://cursor.com" target="_blank" rel="noopener noreferrer" class="quiet-link">Открыть ↗</a>
         </div>
         <div class="client-line">
-          <span class="client-icon client-mcp" aria-hidden="true">MCP</span>
           <div class="client-info"><b>Любой MCP-клиент</b><small>OpenMausBot, VS Code и другие</small></div>
           <button type="button" class="quiet-link quiet-button" id="open-apps">Endpoint</button>
         </div>
@@ -95,7 +86,7 @@
         </div>
       </section>
 
-      <details class="card advanced-block" id="install-advanced">
+      <details class="advanced-block" id="install-advanced">
         <summary><span class="advanced-label"><strong>Дополнительная установка</strong><small>Если нет Node.js или Python</small></span></summary>
         <div class="advanced-content install-dependencies">
           <p class="sub" id="install-deps-hint">Установка отсутствующих зависимостей.</p>
@@ -109,7 +100,7 @@
         </div>
       </details>
 
-      <details class="card advanced-block" id="manage-agent">
+      <details class="advanced-block" id="manage-agent">
         <summary><span class="advanced-label"><strong>Обслуживание агента</strong><small>Отвязка и удаление</small></span></summary>
         <div class="advanced-content">
           <p class="sub">Команды выполняются локально на компьютере с агентом. На сайте программы не удаляются.</p>
@@ -130,13 +121,18 @@
     <section class="hub-view" id="view-usage" aria-labelledby="usage-heading" hidden>
       <div class="view-heading"><div><h1 id="usage-heading">Статистика</h1><p>Использование инструментов и журнал ошибок.</p></div>
         <button class="outline" type="button" id="usage-refresh">Обновить</button></div>
-      <div class="stats">
-        <div class="card"><span class="metric-label">Вызовов инструментов</span><div class="stat-number" id="total-calls">—</div></div>
-        <div class="card"><span class="metric-label">Ошибок</span><div class="stat-number" id="total-errors">—</div><button id="goto-errors" type="button" class="text-link">Показать журнал</button></div>
-        <div class="card"><span class="metric-label">Устройств</span><div class="stat-number" id="device-count">—</div></div>
+      <div class="stats" role="group" aria-label="Сводка использования">
+        <div class="metric"><span class="metric-label">Вызовов инструментов</span><div class="stat-number" id="total-calls">—</div></div>
+        <div class="metric"><span class="metric-label">Ошибок</span><div class="stat-number" id="total-errors">—</div><button id="goto-errors" type="button" class="text-link">Показать журнал</button></div>
+        <div class="metric"><span class="metric-label">Устройств</span><div class="stat-number" id="device-count">—</div></div>
       </div>
-      <section class="card"><div class="section-heading"><h2>Недавние вызовы</h2><span class="sub">По дням и инструментам</span></div>
-        <div id="usage" aria-live="polite"></div></section>
+      <section class="card usage-card" aria-labelledby="usage-list-heading">
+        <div class="section-heading"><h2 id="usage-list-heading">Недавние вызовы</h2><span class="sub">Последние 16 записей</span></div>
+        <table class="usage-table">
+          <thead><tr><th scope="col">Дата</th><th scope="col">Инструмент</th><th scope="col" class="numeric">Вызовы</th><th scope="col" class="numeric">Ошибки</th></tr></thead>
+          <tbody id="usage" aria-live="polite"><tr><td colspan="4" class="table-empty">Загрузка…</td></tr></tbody>
+        </table>
+      </section>
       <details class="card errors-collapsed" id="errors-section">
         <summary class="errors-main-summary"><span class="errors-summary-title">Журнал ошибок</span><span id="errors-header-count" class="errors-summary-count">—</span></summary>
         <div class="errors-detail-content">
