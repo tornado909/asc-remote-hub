@@ -31,3 +31,4 @@ dist/
 *before-2026*
 *.tmp
 .DS_Store
+/CHANGELOG.md
