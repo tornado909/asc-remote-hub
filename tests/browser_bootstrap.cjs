@@ -81,7 +81,8 @@ async function run(){
   signedIn.get('install-win').listeners.click();
   assert.equal(signedIn.get('install-command').textContent,'npx --yes https://hub.example.net/cli.tgz');
   assert(signedIn.get('manage-unpair-command').textContent.includes('npx --yes'));
-  assert.equal(signedIn.get('total-calls').textContent,'4');
+  assert(!signedIn.requests.some(r=>r.endpoint==='/api/usage'),
+    'The Devices landing view must not fetch usage statistics');
   assert.equal(signedIn.get('userbar').children[0].textContent,'Выйти');
   assert.equal(signedIn.get('view-devices').hidden,false,'Devices is the only default page');
   for(const name of ['connect','usage','apps','settings']){
@@ -97,8 +98,11 @@ async function run(){
   await signedIn.get('install-create-pair').listeners.click();
   assert.equal(signedIn.get('install-pair-code').textContent,'TEST_TEST_TEST');
   signedIn.get('nav-usage').listeners.click({preventDefault(){}});
+  await new Promise(r=>setTimeout(r,10));
   assert.equal(signedIn.get('view-usage').hidden,false);
   assert.equal(signedIn.get('total-calls').textContent,'4');
+  assert(signedIn.requests.some(r=>r.endpoint==='/api/usage'),
+    'Usage statistics must load when their tab opens');
   signedIn.get('nav-apps').listeners.click({preventDefault(){}});
   await new Promise(r=>setTimeout(r,10));
   assert.equal(signedIn.get('view-apps').hidden,false);

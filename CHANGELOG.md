@@ -1,3 +1,8 @@
+## 1.2.8 (2026-10-25)
+
+- Load usage statistics only when the Usage view is opened, keeping the Devices landing page independent.
+- Display last contact time for offline devices without exposing additional account data.
+
 ## 2026-10-25 · Hub 1.2.7 / CLI 1.1.5 · Минималистичный интерфейс
 
 - Разделил монолитную страницу авторизованного пользователя на пять экранов: Устройства, Подключение, Статистика, Приложения, Настройки. Главная показывает только список устройств и подключения MCP-клиентов.
