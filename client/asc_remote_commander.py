@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-VERSION = "1.1.4"
+VERSION = "1.1.6"
 MAX_INPUT = 2_000_000
 MAX_TEXT = 100_000
 MAX_FILE_WRITE = 256_000
@@ -80,6 +80,7 @@ class Agent:
         self._jobs: dict[str, tuple[subprocess.Popen[bytes], Path, float]] = {}
         self._isolated_desktops = None
         self._lock = threading.Lock()
+        self._window_captures: dict[str, dict[str, Any]] = {}
         self.tools: dict[str, tuple[dict[str, Any], Callable[[dict[str, Any]], Any]]] = {}
         self._register_tools()
 
@@ -333,6 +334,18 @@ class Agent:
                            "button":{"type":"string","enum":["left","right","middle"]},
                            "clicks":num("Clicks",1,2)},self.click_mouse,
                           required=["hwnd","expected_pid","title_contains","allow_desktop_interference","x","y"],
+                          read_only=False)
+                self._add("click_window_normalized",
+                          "INTERACTIVE screenshot-grounded click on ONE verified foreground window. Use capture_id from window_screenshot (valid for 30 seconds and one click), x/y in 0..1000 relative to that screenshot. Rejects moved/resized windows, reused handles or stale captures. Requires local interactive policy and allow_desktop_interference=true. Prefer window_action for background control.",
+                          {**identity,
+                           "capture_id":S("Opaque one-time capture_id from a recent window_screenshot"),
+                           "x":num("Horizontal position in screenshot, 0..1000",0,1000),
+                           "y":num("Vertical position in screenshot, 0..1000",0,1000),
+                           "button":{"type":"string","enum":["left","right","middle"]},
+                           "clicks":num("Clicks",1,2)},
+                          self.click_window_normalized,
+                          required=["hwnd","expected_pid","title_contains",
+                                    "allow_desktop_interference","capture_id","x","y"],
                           read_only=False)
                 self._add("type_text",
                           "INTERACTIVE LEGACY FALLBACK only, sends keys to verified already-foreground window. Disabled without explicit interference opt-in. Prefer window_action(set_value) for background text.",
@@ -977,6 +990,44 @@ class Agent:
         return {"hwnd":hwnd,"pid":fresh["pid"],"title":fresh["title"],
                 "foreground":True,"desktop_interference":True}
 
+    def _remember_window_capture(self, win: dict[str, Any]) -> str:
+        """Keep only window geometry, not screenshot pixels or any image on disk.
+
+        A bounded in-memory lease ties one future click to a recent observation.
+        The token is deliberately single-use: agents must observe again.
+        """
+        now=time.monotonic()
+        token=uuid.uuid4().hex
+        with self._lock:
+            self._window_captures={
+                key:record for key,record in self._window_captures.items()
+                if 0 <= now-record["when"] < 30
+            }
+            while len(self._window_captures)>=16:
+                oldest=min(self._window_captures,key=lambda key:self._window_captures[key]["when"])
+                del self._window_captures[oldest]
+            self._window_captures[token]={
+                "when":now,
+                "hwnd":win["hwnd"],
+                "pid":win["pid"],
+                "rect":dict(win["rect"])
+            }
+        return token
+
+    def _consume_window_capture(self, capture_id: str, target: dict[str, Any]) -> dict[str, int]:
+        if (not isinstance(capture_id,str) or
+                not re.fullmatch(r"[a-f0-9]{32}",capture_id)):
+            raise ValueError("capture_id must be an opaque ID from window_screenshot")
+        with self._lock:
+            record=self._window_captures.pop(capture_id,None)
+        if record is None or not (0 <= time.monotonic()-record["when"] < 30):
+            raise AccessDenied("Capture expired or already used; refresh window_screenshot")
+        if record["hwnd"]!=target["hwnd"] or record["pid"]!=target["pid"]:
+            raise AccessDenied("Window identity changed since screenshot; refresh window_screenshot")
+        if record["rect"]!=target["rect"]:
+            raise AccessDenied("Window moved or resized since screenshot; refresh window_screenshot")
+        return record["rect"]
+
     def window_screenshot(self,a:dict[str,Any])->dict[str,Any]:
         self.require("gui")
         from PIL import ImageGrab
@@ -995,8 +1046,12 @@ class Agent:
         im.save(memory,format="PNG",optimize=True)
         if memory.tell()>4_000_000:
             raise ValueError("Window screenshot exceeds 4 MB; reduce max_width")
+        capture_id=self._remember_window_capture(win)
         return {"_image":base64.b64encode(memory.getvalue()).decode("ascii"),
-                "width":im.width,"height":im.height,"hwnd":hwnd}
+                "width":im.width,"height":im.height,"hwnd":hwnd,
+                "source_width":box[2]-box[0],"source_height":box[3]-box[1],
+                "window_rect":dict(rect),"capture_id":capture_id,
+                "capture_ttl_seconds":30}
 
     def terminal_send(self,a:dict[str,Any])->dict[str,Any]:
         self.require("gui")
@@ -1069,6 +1124,32 @@ class Agent:
         return {"clicked":[x,y],"button":button,
                 "target_hwnd":target["hwnd"],"desktop_interference":True}
 
+    def click_window_normalized(self,a:dict[str,Any])->dict[str,Any]:
+        """One interaction from a fresh, verified window screenshot.
+
+        Pixel coordinates are window-relative, not virtual desktop-relative;
+        this also works for monitors positioned left or above the primary.
+        """
+        target=self._interactive_target(a)
+        x=checked_int(a.get("x"),0,1000)
+        y=checked_int(a.get("y"),0,1000)
+        button=a.get("button","left")
+        if button not in ("left","right","middle"):
+            raise ValueError("Invalid mouse button")
+        clicks=checked_int(a.get("clicks",1),1,2)
+        rect=self._consume_window_capture(a.get("capture_id"),target)
+        screen_x,screen_y=normalized_window_point(rect,x,y)
+        # Check identity/foreground/geometry once more immediately before input.
+        gui=self._gui()
+        fresh=self._target_window(a,foreground=True)
+        if fresh["rect"]!=rect:
+            raise AccessDenied("Window geometry changed before click; capture a new screenshot")
+        gui.click(screen_x,screen_y,clicks=clicks,button=button)
+        return {"clicked":[screen_x,screen_y],"normalized":[x,y],
+                "coordinate_space":"window_normalized_1000",
+                "target_hwnd":target["hwnd"],"desktop_interference":True,
+                "requires_new_screenshot":True}
+
     def type_text(self,a:dict[str,Any])->dict[str,Any]:
         target=self._interactive_target(a)
         text=a.get("text")
@@ -1139,6 +1220,27 @@ def checked_int(x: Any, low: int, high: int) -> int:
     if isinstance(x, bool) or not isinstance(x, int) or not low <= x <= high:
         raise ValueError(f"Expected integer in range {low}..{high}")
     return x
+
+
+def normalized_window_point(rect: dict[str, int], x: int, y: int) -> tuple[int, int]:
+    """Convert 0..1000 window-relative model coordinates to virtual-screen pixels.
+
+    The far edge maps to right-1/bottom-1, never outside the target.
+    Do not use desktop-wide scaling on multi-monitor layouts.
+    """
+    x=checked_int(x,0,1000)
+    y=checked_int(y,0,1000)
+    if not isinstance(rect,dict) or set(rect)!={"left","top","right","bottom"}:
+        raise ValueError("Expected four window rectangle coordinates")
+    if any(isinstance(v,bool) or not isinstance(v,int) for v in rect.values()):
+        raise ValueError("Window rectangle must contain integers")
+    w=rect["right"]-rect["left"]
+    h=rect["bottom"]-rect["top"]
+    if w<10 or h<10:
+        raise ValueError("Window has no drawable area")
+    px=rect["left"]+(x*(w-1)+500)//1000
+    py=rect["top"]+(y*(h-1)+500)//1000
+    return checked_int(px,-32768,32767),checked_int(py,-32768,32767)
 
 
 def windows_input_events(text: str) -> list[tuple[int,int,int]]:

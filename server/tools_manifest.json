@@ -678,6 +678,93 @@
     ]
   },
   {
+    "name": "click_window_normalized",
+    "description": "INTERACTIVE screenshot-grounded click on one already-foreground verified window. Call window_screenshot first; capture_id expires in 30 seconds and is one-use. x/y are normalized 0..1000 relative to that screenshot. Rejects moved/resized windows and stale captures. Requires local interactive policy and explicit interference opt-in; prefer window_action for background UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "hwnd": {
+          "type": "integer",
+          "description": "HWND from window_list",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "expected_pid": {
+          "type": "integer",
+          "description": "Expected PID",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "title_contains": {
+          "type": "string",
+          "description": "Expected title fragment (>=3 characters)"
+        },
+        "allow_desktop_interference": {
+          "type": "boolean",
+          "description": "Explicitly authorize shared user mouse/keyboard interference for THIS call."
+        },
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "X coordinate 0..1000 relative to window screenshot"
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Y coordinate 0..1000 relative to window screenshot"
+        },
+        "button": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ]
+        },
+        "clicks": {
+          "type": "integer",
+          "description": "Clicks",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "capture_id": {
+          "type": "string",
+          "description": "Opaque one-use capture_id returned by window_screenshot"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "hwnd",
+        "expected_pid",
+        "title_contains",
+        "allow_desktop_interference",
+        "x",
+        "y",
+        "capture_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
     "name": "type_text",
     "description": "INTERACTIVE LEGACY FALLBACK only, sends keys to verified already-foreground window. Disabled without explicit interference opt-in. Prefer window_action(set_value) for background text.",
     "inputSchema": {

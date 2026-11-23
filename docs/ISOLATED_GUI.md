@@ -71,3 +71,29 @@ gui_desktop_close(device, desktop_id)
 5. Только затем пилотное тестирование конкретной игры по разрешению пользователя.
 
 Не устанавливать Hyper-V/VM, виртуальные мониторы или драйверы ради этого экспериментального модуля.
+
+## Screenshot-grounded coordinates on the shared Windows desktop
+
+The preferred interaction route remains window_controls + window_action
+(UI Automation, without physical mouse input). For legacy programs that
+cannot expose useful UIA controls, a separately authorized visual fallback:
+
+1. Get the exact HWND, PID and title through window_list.
+2. Take window_screenshot(hwnd): the PNG response also contains window_rect,
+   original source dimensions and a one-time capture_id.
+3. Only where locally enabled, invoke click_window_normalized with the same
+   HWND, expected_pid, title_contains and capture_id. Provide x/y on a
+   0..1000 window-relative scale plus allow_desktop_interference=true.
+4. Capture the new window state to verify the outcome before another click.
+
+A click is refused on an expired capture (30 seconds), a reused capture,
+changed HWND/PID, moved/resized window, or a non-foreground target.
+Window screenshots may contain occluding windows; visual targets are not
+guaranteed to remain present. Always inspect the next screenshot.
+Window-relative coordinates also work for secondary monitors with negative
+virtual-screen offsets.
+
+No screenshot history is persisted. Only 16 transient window geometry
+records are kept in memory. This does not add Ollama, autonomous execution,
+or background access. Local interactive permission is still mandatory.
+For truly separate Win32 Desktops use the gui_desktop_* tools instead.
