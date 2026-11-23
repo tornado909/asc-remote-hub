@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-VERSION = "1.1.4"
+VERSION = "1.1.6"
 MAX_INPUT = 2_000_000
 MAX_TEXT = 100_000
 MAX_FILE_WRITE = 256_000
@@ -74,6 +74,7 @@ class Agent:
         # Refuse mutations while the user is actively typing/moving their mouse.
         self.uia_active_user_override = enabled("ASC_RC_UIA_ALLOW_ACTIVE_USER")
         self._uia_focus_interference: set[tuple[int,int]] = set()
+        self._native_desktop_backend = None
         self.allow_delete = enabled("ASC_RC_ALLOW_DELETE") and self.allow_write
         self.state_dir = Path(os.environ.get("ASC_RC_STATE_DIR", str(Path.home() / ".asc-remote-commander"))).resolve()
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -194,6 +195,60 @@ class Agent:
                 required=["job_id"], read_only=False, destructive=True)
         if self.allow_gui:
             if os.name == "nt":
+                # Optional native accessibility engine, verified by exact
+                # upstream binary hash. No Node.js, screenshots or shell.
+                from asc_desktop_native import installed as native_desktop_installed
+                if native_desktop_installed():
+                    self._add("desktop_status",
+                              "Get installed semantic desktop engine status, OS permissions and supported surfaces; no UI changes.",
+                              {},self.desktop_status)
+                    self._add("desktop_windows",
+                              "List windows recognized by the native accessibility engine. Returns window IDs for desktop_snapshot/find; no screenshot or input.",
+                              {"app":S("Optional exact application name"),
+                               "timeout_ms":num("Deadline in milliseconds",500,20000)},
+                              self.desktop_windows)
+                    self._add("desktop_snapshot",
+                              "Read native accessibility tree into JSON with qualified @snapshot:eN refs, not screenshots. Skeleton+drill supported; refs are resolved by the native engine. Default interactive and compact.",
+                              {"app":S("Optional application name"),
+                               "window_id":S("Exact native window ID from desktop_windows"),
+                               "root":S("Optional existing ref to inspect its subtree"),
+                               "interactive_only":{"type":"boolean"},
+                               "compact":{"type":"boolean"},
+                               "skeleton":{"type":"boolean"},
+                               "max_depth":num("Depth 1..30",1,30),
+                               "timeout_ms":num("Deadline milliseconds",1000,25000)},
+                              self.desktop_snapshot)
+                    self._add("desktop_find",
+                              "Find native accessibility elements by role and/or name. Returns fresh, qualified refs. No screenshot or input.",
+                              {"app":S("Optional application name"),
+                               "window_id":S("Optional native window ID"),
+                               "root":S("Optional root ref to search"),
+                               "role":S("Accessible role, e.g. button"),
+                               "name":S("Accessible name"),
+                               "exact":{"type":"boolean"},
+                               "first":{"type":"boolean"},
+                               "timeout_ms":num("Deadline milliseconds",1000,25000)},
+                              self.desktop_find)
+                    self._add("desktop_get",
+                              "Read text, value, title, bounds, role or states of a qualified native accessibility ref; no input.",
+                              {"ref":S("Qualified ref from desktop_snapshot/find"),
+                               "property":{"type":"string",
+                                           "enum":["text","value","title","bounds","role","states"]}},
+                              self.desktop_get,required=["ref"])
+                    self._add("desktop_is",
+                              "Read visible/enabled/checked/focused/expanded/selected state of a native ref; no input.",
+                              {"ref":S("Qualified ref from desktop_snapshot/find"),
+                               "property":{"type":"string",
+                                           "enum":["visible","enabled","checked","focused","expanded","selected"]}},
+                              self.desktop_is,required=["ref","property"])
+                    self._add("desktop_act",
+                              "One native SEMANTIC accessibility operation by qualified ref; no mouse/keyboard injection, clipboard, screenshots or --headed. Requires 45 seconds idle unless locally overridden. Returns verification status; observe again.",
+                              {"ref":S("Qualified @snapshot:eN ref"),
+                               "action":{"type":"string","enum":["click","set-value","type",
+                                         "clear","toggle","check","uncheck","select","expand","collapse"]},
+                               "value":S("Text only for set-value, type or select"),
+                               "timeout_ms":num("Deadline milliseconds",1000,25000)},
+                              self.desktop_act,required=["ref","action"],read_only=False)
                 self._add("window_controls",
                           "Read UI Automation controls inside ONE verified Windows window without moving the mouse or stealing focus. Choose a unique automation_id/name for window_action. Browser support varies.",
                           {"hwnd":num("Target HWND from window_list",1,9223372036854775807),
@@ -921,6 +976,40 @@ class Agent:
             error=output.get("error","UIA_PROVIDER_ERROR") if isinstance(output,dict) else "UIA_PROVIDER_ERROR"
             raise RuntimeError("UIA_"+str(error)[:90])
         return output
+
+    def _native_desktop(self):
+        self.require("gui")
+        if os.name!="nt":
+            raise RuntimeError("Native desktop accessibility is Windows-only in this release")
+        if self._native_desktop_backend is None:
+            from asc_desktop_native import NativeDesktop
+            self._native_desktop_backend=NativeDesktop(self.state_dir)
+        return self._native_desktop_backend
+
+    def desktop_status(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().status(a)
+
+    def desktop_windows(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().windows(a)
+
+    def desktop_snapshot(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().snapshot(a)
+
+    def desktop_find(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().find(a)
+
+    def desktop_get(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().get(a)
+
+    def desktop_is(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().is_state(a)
+
+    def desktop_act(self,a:dict[str,Any])->dict[str,Any]:
+        native=self._native_desktop()
+        # Preserve the existing local Windows policy: semantic actions may
+        # trigger focus changes in buggy accessibility providers.
+        self._require_desktop_idle()
+        return native.act(a)
 
     def window_controls(self,a:dict[str,Any])->dict[str,Any]:
         item=self._target_window(a)
