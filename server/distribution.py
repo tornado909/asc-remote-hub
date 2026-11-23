@@ -16,7 +16,7 @@ import re
 import tarfile
 import tempfile
 
-RELEASE = "1.1.6"
+RELEASE = "1.1.7"
 CLI = f"cli-{RELEASE}.tgz"
 AGENT = f"asc-remote-hub-agent-{RELEASE}.tar.gz"
 ALLOWED_FILES = (
@@ -26,6 +26,8 @@ ALLOWED_FILES = (
     "client/windows_uia.ps1",
     "client/bridge.py",
     "client/asc_desktop_native.py",
+    "client/asc_desktop_workflows.py",
+    "client/asc_desktop_ffi.py",
     "install/start_windows.ps1",
     "install/install_windows.ps1",
     "install/tray_windows.ps1",

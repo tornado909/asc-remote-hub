@@ -13,7 +13,9 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import time
 from typing import Any
+from asc_desktop_workflows import WorkflowMixin,WINDOW_SURFACES,session_scope,native_scope,string,number,boolean,ref
 
 NATIVE_RELEASE = "1.3.1"
 # SHA256 of the x86_64 Windows executable extracted from the verified
@@ -25,7 +27,15 @@ MAX_OUTPUT_BYTES = 600_000
 MAX_NATIVE_TIMEOUT_MS = 25_000
 
 class NativeDesktopError(RuntimeError):
-    pass
+    """Minimal, machine-readable error; never prints private window content."""
+    def __init__(self,code:str,disposition:dict|None=None,recovery:dict|None=None):
+        self.code=code
+        self.disposition=disposition or {"delivery":"unknown","retry":"unknown"}
+        self.recovery=recovery or None
+        super().__init__(json.dumps({"code":self.code,"disposition":self.disposition,
+                         **({"recovery":self.recovery} if self.recovery else {})},
+                         separators=(",",":")))
+
 
 
 def native_executable() -> Path:
@@ -86,64 +96,117 @@ def _ref(value: Any) -> str:
     return s
 
 
-class NativeDesktop:
+class NativeDesktop(WorkflowMixin):
     def __init__(self, state_dir: Path) -> None:
         if not installed():
             raise NativeDesktopError("Native desktop engine unavailable or SHA256 verification failed")
         self.exe = native_executable()
         self.state = Path(state_dir).resolve() / "native-desktop"
+        self._ffi_backend = None
         # IMPORTANT: Do not mkdir this on Windows. The native engine must
         # create the state root itself with a private DACL; a Python-created
         # directory may inherit broad ACLs and is rightly rejected.
 
-    def _run(self, command: str, args: list[str], timeout_ms: int=6000) -> dict:
+    def _ffi(self):
+        if self._ffi_backend is None:
+            from asc_desktop_ffi import DesktopFFI
+            self._ffi_backend = DesktopFFI(self.state)
+        return self._ffi_backend
+
+    def _run(self,command:str,args:list[str],timeout_ms:int=6000,*,
+             session_id:str|None=None,input_text:str|None=None)->dict:
         if not installed():
-            raise NativeDesktopError("Native desktop engine changed; refusing execution")
-        if command not in {
-            "status","list-windows","snapshot","find","get","is","click","set-value",
-            "type","clear","toggle","check","uncheck","select","expand","collapse"
-        }:
+            raise NativeDesktopError("BINARY_MISMATCH")
+        allowed={
+            "status","list-windows","list-apps","list-surfaces","session",
+            "snapshot","find","get","is","wait","click","set-value","type",
+            "clear","toggle","check","uncheck","select","expand","collapse",
+            "launch","close-app","focus-window","move-window","resize-window",
+            "minimize","maximize","restore",
+        }
+        if command not in allowed:
             raise ValueError("Unsupported semantic desktop operation")
-        environment={**os.environ, "AGENT_DESKTOP_HOME":str(self.state)}
-        # The native CLI defaults to strict headless semantic delivery.
-        # Never permit --headed, physical clicks, screenshots, arbitrary shell
-        # arguments, tracing, subprocess startup, or interactive stdin here.
-        if any(flag in args for flag in (
-                "--headed","--screenshot","--trace","--debug",
-                "--mouse-click","--key","--session")):
+        forbidden={"--headed","--screenshot","--trace","--debug","--mouse-click","--key","--session"}
+        if any(isinstance(arg,str) and arg in forbidden for arg in args):
             raise ValueError("Unsafe native desktop option refused")
+        if session_id is not None:
+            session_scope({"session_id":session_id})
+        if input_text is not None and command not in ("set-value","type"):
+            raise ValueError("stdin text is only supported for field edit actions")
+        environment=dict(os.environ)
+        # Never trust inherited host tracing or cross-request session scope.
+        for key in ("AGENT_DESKTOP_SESSION","AGENT_DESKTOP_AGENT_ID",
+                    "AGENT_DESKTOP_TRACE","AGENT_DESKTOP_SCREENSHOTS"):
+            environment.pop(key,None)
+        environment["AGENT_DESKTOP_HOME"]=str(self.state)
+        if session_id is not None:
+            environment["AGENT_DESKTOP_SESSION"]=session_id
+        kwargs={
+            "env":environment,"stdout":subprocess.PIPE,"stderr":subprocess.PIPE,
+            "timeout":min(80,max(8,timeout_ms/1000+12)),
+            "creationflags":getattr(subprocess,"CREATE_NO_WINDOW",0),
+            "check":False,
+        }
+        if input_text is None:
+            kwargs["stdin"]=subprocess.DEVNULL
+        else:
+            kwargs["input"]=input_text.encode("utf-8")
+        deadline=getattr(self,"_batch_deadline",None)
+        if deadline is not None:
+            remaining=deadline-time.monotonic()
+            if remaining<=0:
+                raise NativeDesktopError("TIMEOUT",{"delivery":"not_delivered","retry":"safe"})
+            kwargs["timeout"]=min(kwargs["timeout"],max(0.05,remaining))
         try:
-            proc=subprocess.run(
-                [str(self.exe),command,*args],
-                env=environment,stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-                timeout=min(42,max(8,timeout_ms/1000+10)),
-                creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0),
-                check=False
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise NativeDesktopError("TIMEOUT: semantic desktop operation exceeded its deadline") from None
+            proc=subprocess.run([str(self.exe),command,*args],**kwargs)
+        except subprocess.TimeoutExpired:
+            read_only=command in {"status","list-windows","list-apps","list-surfaces",
+                "snapshot","find","get","is","wait"}
+            raise NativeDesktopError("TIMEOUT",{
+                "delivery":"not_delivered" if read_only else "unknown",
+                "retry":"safe" if read_only else "unknown"}) from None
         if len(proc.stdout)>MAX_OUTPUT_BYTES:
-            raise NativeDesktopError("OUTPUT_TOO_LARGE: narrow the requested accessibility tree")
+            raise NativeDesktopError("OUTPUT_TOO_LARGE")
         try:
             result=json.loads(proc.stdout.decode("utf-8-sig"))
         except (UnicodeError,ValueError) as exc:
-            raise NativeDesktopError("ENGINE_INVALID_JSON: semantic desktop did not return JSON") from exc
+            raise NativeDesktopError("ENGINE_INVALID_JSON") from exc
         if not isinstance(result,dict) or result.get("ok") is not True or proc.returncode!=0:
             error=result.get("error",{}) if isinstance(result,dict) else {}
             code=error.get("code","ENGINE_FAILED") if isinstance(error,dict) else "ENGINE_FAILED"
             if not isinstance(code,str) or not re.fullmatch(r"[A-Z][A-Z_0-9]{1,48}",code):
                 code="ENGINE_FAILED"
-            # Return machine-readable error category, not untrusted UI text or
-            # full process stderr. No sensitive desktop data enter logs.
-            raise NativeDesktopError(code)
+            candidate=error.get("disposition") if isinstance(error,dict) else None
+            disposition=None
+            if isinstance(candidate,dict):
+                d=candidate.get("delivery");r=candidate.get("retry")
+                if d in ("not_delivered","delivery_uncertain","delivered_unverified",
+                         "delivered_verified","unknown") and r in ("safe","unsafe","unknown"):
+                    disposition={"delivery":d,"retry":r}
+            recovery=None
+            safe=error.get("recovery") if isinstance(error,dict) else None
+            if isinstance(safe,dict) and disposition and disposition["retry"]=="safe":
+                strategy=safe.get("strategy")
+                if isinstance(strategy,str) and re.fullmatch(r"[a-z_]{1,40}",strategy):
+                    recovery={"strategy":strategy,"requires_fresh_snapshot":
+                              safe.get("requires_fresh_snapshot") is True}
+            raise NativeDesktopError(code,disposition,recovery)
         if command in ("snapshot","find"):
-            self._prune_snapshots()
+            self._prune_snapshots(session_id)
         return result
 
-    def _prune_snapshots(self) -> None:
-        """Bound local refmap growth; never follow symlinks or touch other apps."""
-        store=self.state/"snapshots"
+    def _prune_snapshots(self,session_id:str|None=None) -> None:
+        """Bound global or session-specific refmaps; never follow symlinks."""
+        base=self.state
+        if session_id is not None:
+            session_scope({"session_id":session_id})
+            for piece in ("sessions",session_id):
+                if base.is_symlink():
+                    return
+                base=base/piece
+        if base.is_symlink():
+            return
+        store=base/"snapshots"
         if not store.is_dir() or store.is_symlink():
             return
         try:
@@ -181,70 +244,119 @@ class NativeDesktop:
             return ["--app",app]
         return []
 
-    def status(self, args:dict) -> dict:
-        return self._run("status",[],5000)
+    def status(self,args:dict)->dict:
+        engine=string(args.get("engine"),"engine",8) or "cli"
+        if engine=="ffi":
+            return self._ffi().status(session_scope(args))
+        if engine!="cli":raise ValueError("Engine must be cli or ffi")
+        return self._run("status",[],5000,session_id=session_scope(args))
 
-    def windows(self, args:dict) -> dict:
-        timeout=_bounded_int(args.get("timeout_ms"),"timeout_ms",8000,500,20_000)
-        app=_bounded_text(args.get("app"),"app",128)
+    def windows(self,args:dict)->dict:
+        timeout=number(args.get("timeout_ms"),"timeout_ms",8000,500,20000)
+        app=string(args.get("app"),"app",128)
         return self._run("list-windows",(["--app",app] if app else [])+
-                          ["--timeout-ms",str(timeout)],timeout)
+                         ["--timeout-ms",str(timeout)],timeout,session_id=session_scope(args))
 
-    def snapshot(self, args:dict) -> dict:
-        timeout=_bounded_int(args.get("timeout_ms"),"timeout_ms",7000,1000,MAX_NATIVE_TIMEOUT_MS)
-        depth=_bounded_int(args.get("max_depth"),"max_depth",8,1,30)
-        skeleton=_boolean(args.get("skeleton"),"skeleton",False)
-        interactive=_boolean(args.get("interactive_only"),"interactive_only",True)
-        compact=_boolean(args.get("compact"),"compact",True)
-        scope=self._scope(args,allow_root=True)
+    def snapshot(self,args:dict)->dict:
+        timeout=number(args.get("timeout_ms"),"timeout_ms",7000,1000,MAX_NATIVE_TIMEOUT_MS)
+        depth=number(args.get("max_depth"),"max_depth",8,1,30)
+        skeleton=boolean(args.get("skeleton"),"skeleton",False)
+        interactive=boolean(args.get("interactive_only"),"interactive_only",True)
+        compact=boolean(args.get("compact"),"compact",True)
+        scope=native_scope(args,allow_root=True)
+        surface=string(args.get("surface"),"surface",28)
+        engine=string(args.get("engine"),"engine",8) or "cli"
+        if engine=="ffi":
+            app=string(args.get("app"),"app",128)
+            if args.get("window_id") or args.get("root") or skeleton:
+                raise ValueError("FFI snapshot supports app or frontmost window, not window_id/root/skeleton")
+            sid=session_scope(args)
+            result=self._ffi().snapshot(app,surface or "window",depth,interactive,compact,sid)
+            self._prune_snapshots(sid)
+            return result
+        if engine!="cli":raise ValueError("Engine must be cli or ffi")
         command=[*scope,"--max-depth",str(depth),"--timeout-ms",str(timeout)]
+        if surface:
+            if surface not in WINDOW_SURFACES:raise ValueError("Unsupported Windows UI surface")
+            if args.get("root"):raise ValueError("Surface and root cannot be combined")
+            if skeleton:raise ValueError("Surface is already scoped; skeleton is not supported")
+            command+=["--surface",surface]
         if interactive:command.append("--interactive-only")
         if compact:command.append("--compact")
         if skeleton:
-            if "--root" in command:
-                raise ValueError("skeleton cannot be combined with root")
+            if args.get("root"):raise ValueError("skeleton cannot be combined with root")
             command.append("--skeleton")
-        return self._run("snapshot",command,timeout)
+        return self._run("snapshot",command,timeout,session_id=session_scope(args))
 
-    def find(self, args:dict) -> dict:
-        timeout=_bounded_int(args.get("timeout_ms"),"timeout_ms",7000,1000,MAX_NATIVE_TIMEOUT_MS)
-        role=_bounded_text(args.get("role"),"role",64)
-        name=_bounded_text(args.get("name"),"name",180)
-        if not role and not name:
-            raise ValueError("role or name is required")
-        scope=self._scope(args,allow_root=True)
+    def find(self,args:dict)->dict:
+        timeout=number(args.get("timeout_ms"),"timeout_ms",7000,1000,MAX_NATIVE_TIMEOUT_MS)
+        role=string(args.get("role"),"role",64)
+        name=string(args.get("name"),"name",180)
+        if not role and not name:raise ValueError("role or name is required")
+        scope=native_scope(args,allow_root=True)
+        surface=string(args.get("surface"),"surface",28)
         command=[*scope,"--timeout-ms",str(timeout)]
+        if surface:
+            if surface not in WINDOW_SURFACES or args.get("root"):
+                raise ValueError("Invalid surface or root combination")
+            command+=["--surface",surface]
         if role:command+=["--role",role]
         if name:command+=["--name",name]
-        if _boolean(args.get("exact"),"exact",True):command.append("--exact")
-        if _boolean(args.get("first"),"first",False):command.append("--first")
-        return self._run("find",command,timeout)
+        if boolean(args.get("exact"),"exact",True):command.append("--exact")
+        if boolean(args.get("first"),"first",False):command.append("--first")
+        return self._run("find",command,timeout,session_id=session_scope(args))
 
-    def get(self, args:dict) -> dict:
-        prop=_bounded_text(args.get("property"),"property",20) or "text"
+    def get(self,args:dict)->dict:
+        prop=string(args.get("property"),"property",20) or "text"
         if prop not in ("text","value","title","bounds","role","states"):
             raise ValueError("Invalid property")
-        return self._run("get",[_ref(args.get("ref")),"--property",prop],7000)
+        return self._run("get",[ref(args.get("ref")),"--property",prop],
+                         7000,session_id=session_scope(args))
 
-    def is_state(self, args:dict) -> dict:
-        prop=_bounded_text(args.get("property"),"property",20,True)
+    def is_state(self,args:dict)->dict:
+        prop=string(args.get("property"),"property",20,True)
         if prop not in ("visible","enabled","checked","focused","expanded","selected"):
             raise ValueError("Invalid state property")
-        return self._run("is",[_ref(args.get("ref")),"--property",prop],7000)
+        return self._run("is",[ref(args.get("ref")),"--property",prop],
+                         7000,session_id=session_scope(args))
 
-    def act(self, args:dict) -> dict:
-        action=_bounded_text(args.get("action"),"action",16,True)
-        if action not in ("click","set-value","type","clear","toggle",
-                          "check","uncheck","select","expand","collapse"):
+    def act(self,args:dict)->dict:
+        action=string(args.get("action"),"action",16,True)
+        if action not in ("click","set-value","type","clear","toggle","check",
+                          "uncheck","select","expand","collapse"):
             raise ValueError("Only semantic accessibility actions are supported")
-        ref=_ref(args.get("ref"))
-        timeout=_bounded_int(args.get("timeout_ms"),"timeout_ms",7000,1000,MAX_NATIVE_TIMEOUT_MS)
+        target=ref(args.get("ref"))
+        timeout=number(args.get("timeout_ms"),"timeout_ms",7000,1000,MAX_NATIVE_TIMEOUT_MS)
         value=args.get("value")
-        if action in ("set-value","type","select"):
-            value=_bounded_text(value,"value",4000,True)
+        stdin_text=None
+        command=[target]
+        if action in ("set-value","type"):
+            stdin_text=string(value,"value",4000,True)
+            command.append("--stdin")
+        elif action=="select":
+            command.append(string(value,"value",256,True))
         elif value is not None:
-            raise ValueError("Only set-value, type, or select accept value")
-        command=[ref]
-        if action in ("set-value","type","select"):command.append(value)
+            raise ValueError("Only set-value, type or select accept text")
         command+=["--timeout-ms",str(timeout)]
-        return self._run(action,command,timeout)
+        ready=string(args.get("wait_for"),"wait_for",180)
+        gone=string(args.get("wait_for_gone"),"wait_for_gone",180)
+        if ready and gone:raise ValueError("Choose wait_for or wait_for_gone")
+        wait_timeout=None
+        if ready or gone:
+            from asc_desktop_workflows import ACTION_WAIT
+            expected=ready or gone
+            if not ACTION_WAIT.fullmatch(expected):
+                raise ValueError("Invalid role:text action wait selector")
+            wait_timeout=number(args.get("wait_timeout_ms"),"wait_timeout_ms",10000,200,30000)
+            command+=["--wait-for" if ready else "--wait-for-gone",expected,
+                      "--wait-timeout",str(wait_timeout)]
+        elif args.get("wait_timeout_ms") is not None:
+            raise ValueError("wait_timeout_ms requires wait_for or wait_for_gone")
+        engine=string(args.get("engine"),"engine",8) or "cli"
+        if engine=="ffi":
+            if ready or gone:
+                raise ValueError("FFI actions do not support built-in post-action waits; use desktop_wait")
+            return self._ffi().act(target,action,value,timeout,session_scope(args))
+        if engine!="cli":raise ValueError("Engine must be cli or ffi")
+        return self._run(action,command,timeout+(wait_timeout or 0),
+                         session_id=session_scope(args),input_text=stdin_text)

@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 MAX_INPUT = 2_000_000
 MAX_TEXT = 100_000
 MAX_FILE_WRITE = 256_000
@@ -199,56 +199,112 @@ class Agent:
                 # upstream binary hash. No Node.js, screenshots or shell.
                 from asc_desktop_native import installed as native_desktop_installed
                 if native_desktop_installed():
+                    session_prop=S("Optional isolated session_id from desktop_session(start)")
+                    milliseconds=num("Deadline in milliseconds",200,30000)
                     self._add("desktop_status",
-                              "Get installed semantic desktop engine status, OS permissions and supported surfaces; no UI changes.",
-                              {},self.desktop_status)
+                              "Native desktop engine status and platform capabilities.",
+                              {"session_id":session_prop,"engine":{"type":"string","enum":["cli","ffi"]}},self.desktop_status)
                     self._add("desktop_windows",
-                              "List windows recognized by the native accessibility engine. Returns window IDs for desktop_snapshot/find; no screenshot or input.",
-                              {"app":S("Optional exact application name"),
-                               "timeout_ms":num("Deadline in milliseconds",500,20000)},
-                              self.desktop_windows)
+                              "List native accessibility windows; use exact window ID for subsequent operations.",
+                              {"app":S("Optional application"),"timeout_ms":num("Deadline",500,20000),
+                               "session_id":session_prop},self.desktop_windows)
                     self._add("desktop_snapshot",
-                              "Read native accessibility tree into JSON with qualified @snapshot:eN refs, not screenshots. Skeleton+drill supported; refs are resolved by the native engine. Default interactive and compact.",
-                              {"app":S("Optional application name"),
-                               "window_id":S("Exact native window ID from desktop_windows"),
-                               "root":S("Optional existing ref to inspect its subtree"),
-                               "interactive_only":{"type":"boolean"},
-                               "compact":{"type":"boolean"},
-                               "skeleton":{"type":"boolean"},
-                               "max_depth":num("Depth 1..30",1,30),
-                               "timeout_ms":num("Deadline milliseconds",1000,25000)},
+                              "Observe a semantic UIA tree. Supports interactive-only, skeleton, subtree refs, and open menu/dialog/shell surfaces. No screenshots.",
+                              {"engine":{"type":"string","enum":["cli","ffi"]},
+                               "app":S("Optional app"),"window_id":S("Exact native w-ID"),
+                               "root":S("Optional subtree ref"),"surface":S("Optional UI surface menu/sheet/alert/tray"),
+                               "interactive_only":{"type":"boolean"},"compact":{"type":"boolean"},
+                               "skeleton":{"type":"boolean"},"max_depth":num("Depth",1,30),
+                               "timeout_ms":num("Deadline",1000,25000),"session_id":session_prop},
                               self.desktop_snapshot)
                     self._add("desktop_find",
-                              "Find native accessibility elements by role and/or name. Returns fresh, qualified refs. No screenshot or input.",
-                              {"app":S("Optional application name"),
-                               "window_id":S("Optional native window ID"),
-                               "root":S("Optional root ref to search"),
-                               "role":S("Accessible role, e.g. button"),
-                               "name":S("Accessible name"),
-                               "exact":{"type":"boolean"},
-                               "first":{"type":"boolean"},
-                               "timeout_ms":num("Deadline milliseconds",1000,25000)},
+                              "Find accessible role/name, optionally in menu or dialog. Returns qualified ref.",
+                              {"app":S("Optional app"),"window_id":S("Exact native window ID"),
+                               "root":S("Optional subtree ref"),"surface":S("Optional UI surface"),
+                               "role":S("Accessible role"),"name":S("Accessible name"),
+                               "exact":{"type":"boolean"},"first":{"type":"boolean"},
+                               "timeout_ms":num("Deadline",1000,25000),"session_id":session_prop},
                               self.desktop_find)
                     self._add("desktop_get",
-                              "Read text, value, title, bounds, role or states of a qualified native accessibility ref; no input.",
-                              {"ref":S("Qualified ref from desktop_snapshot/find"),
-                               "property":{"type":"string",
-                                           "enum":["text","value","title","bounds","role","states"]}},
-                              self.desktop_get,required=["ref"])
-                    self._add("desktop_is",
-                              "Read visible/enabled/checked/focused/expanded/selected state of a native ref; no input.",
-                              {"ref":S("Qualified ref from desktop_snapshot/find"),
-                               "property":{"type":"string",
-                                           "enum":["visible","enabled","checked","focused","expanded","selected"]}},
-                              self.desktop_is,required=["ref","property"])
-                    self._add("desktop_act",
-                              "One native SEMANTIC accessibility operation by qualified ref; no mouse/keyboard injection, clipboard, screenshots or --headed. Requires 45 seconds idle unless locally overridden. Returns verification status; observe again.",
+                              "Read a property of an accessibility ref; no desktop mutation.",
                               {"ref":S("Qualified @snapshot:eN ref"),
+                               "property":{"type":"string","enum":["text","value","title","bounds","role","states"]},
+                               "session_id":session_prop},self.desktop_get,required=["ref"])
+                    self._add("desktop_is",
+                              "Read enabled/checked/visible/focused/expanded/selected state.",
+                              {"ref":S("Qualified ref"),
+                               "property":{"type":"string","enum":["visible","enabled","checked",
+                                           "focused","expanded","selected"]},
+                               "session_id":session_prop},self.desktop_is,required=["ref","property"])
+                    self._add("desktop_act",
+                              "Native semantic action. Private text input goes via stdin, never process argv. Optional event-aware wait_for/wait_for_gone and native delivery/retry disposition. Requires user-idle policy.",
+                              {"ref":S("Qualified ref"),
+                               "engine":{"type":"string","enum":["cli","ffi"]},
                                "action":{"type":"string","enum":["click","set-value","type",
-                                         "clear","toggle","check","uncheck","select","expand","collapse"]},
-                               "value":S("Text only for set-value, type or select"),
-                               "timeout_ms":num("Deadline milliseconds",1000,25000)},
-                              self.desktop_act,required=["ref","action"],read_only=False)
+                                        "clear","toggle","check","uncheck","select","expand","collapse"]},
+                               "value":S("Text for set-value/type/select"),
+                               "timeout_ms":num("Deadline",1000,25000),
+                               "wait_for":S("Post-action role:text selector to appear"),
+                               "wait_for_gone":S("Post-action role:text selector to disappear"),
+                               "wait_timeout_ms":num("Wait timeout",200,30000),
+                               "session_id":session_prop},self.desktop_act,
+                              required=["ref","action"],read_only=False)
+                    self._add("desktop_surfaces",
+                              "List currently open native app menu, sheet, popup and alert surfaces.",
+                              {"app":S("Exact application name"),"session_id":session_prop},
+                              self.desktop_surfaces,required=["app"])
+                    self._add("desktop_wait",
+                              "Native condition wait, not a sleep: element actionable/visible, window, text, menu, notification or lifecycle event; no input.",
+                              {"mode":{"type":"string","enum":["element","window","text","menu","menu-closed","event","notification"]},
+                               "ref":S("Element ref for element mode"),
+                               "predicate":{"type":"string","enum":["exists","enabled","visible","actionable"]},
+                               "action":S("Actionability verb"),
+                               "window":S("Window title fragment"),"event":S("Native event kind"),
+                               "window_id":S("Exact native window ID"),"app":S("App name"),
+                               "text":S("Search text (not secrets)"),
+                               "timeout_ms":num("Wait deadline",200,30000),
+                               "session_id":session_prop},
+                              self.desktop_wait,required=["mode"])
+                    self._add("desktop_verify",
+                              "Confidential value wait: compares a UI field in memory. Expected value never appears in process arguments or result.",
+                              {"ref":S("Qualified field ref"),"value":S("Expected private text"),
+                               "timeout_ms":num("Deadline",500,25000),"session_id":session_prop},
+                              self.desktop_verify,required=["ref","value"])
+                    self._add("desktop_session",
+                              "Start/list/end/prune isolated ref namespaces with traces and screenshots disabled. Stop using ended sessions.",
+                              {"operation":{"type":"string","enum":["start","list","end","gc"]},
+                               "name":S("Optional label for new session"),
+                               "session_id":session_prop,
+                               "older_than_seconds":num("GC ended sessions after age",3600,2592000)},
+                              self.desktop_session,required=["operation"],
+                              read_only=False)
+                    self._add("desktop_apps",
+                              "List, launch, or gracefully close installed apps by registered name. Launch and close enforce user-idle policy; no shell, force-kill, or arbitrary arguments.",
+                              {"operation":{"type":"string","enum":["list","launch","close"]},
+                               "app":S("Registered app name"),"timeout_ms":num("Deadline",500,30000),
+                               "session_id":session_prop},self.desktop_apps,required=["operation"],
+                              read_only=False)
+                    self._add("desktop_window",
+                              "Move/resize/minimize/maximize/restore/focus an exact native window with user-idle guard.",
+                              {"operation":{"type":"string","enum":["focus","move","resize","minimize","maximize","restore"]},
+                               "app":S("App name"),"window_id":S("Native w-ID"),
+                               "width":num("Width",100,7680),"height":num("Height",100,4320),
+                               "x":num("X coordinate",-20000,20000),
+                               "y":num("Y coordinate",-20000,20000),"session_id":session_prop},
+                              self.desktop_window,required=["operation"],read_only=False)
+                    self._add("desktop_batch",
+                              "Bounded sequential semantic workflow of 1..12 typed operations in a single MCP request. Non-atomic; stops on unsafe/unknown delivery. Private text via stdin and no native batch JSON in command line.",
+                              {"steps":{"type":"array","minItems":1,"maxItems":12,
+                                "items":{"type":"object","additionalProperties":False,
+                                         "properties":{"op":{"type":"string",
+                                            "enum":["status","windows","apps","surfaces","snapshot","find",
+                                                    "get","is","wait","verify","act","window"]},
+                                            "args":{"type":"object"}},
+                                         "required":["op","args"]}},
+                               "stop_on_error":{"type":"boolean"},
+                               "timeout_ms":num("Total deadline",1000,60000),
+                               "session_id":session_prop},self.desktop_batch,required=["steps"],
+                              read_only=False)
                 self._add("window_controls",
                           "Read UI Automation controls inside ONE verified Windows window without moving the mouse or stealing focus. Choose a unique automation_id/name for window_action. Browser support varies.",
                           {"hwnd":num("Target HWND from window_list",1,9223372036854775807),
@@ -1010,6 +1066,30 @@ class Agent:
         # trigger focus changes in buggy accessibility providers.
         self._require_desktop_idle()
         return native.act(a)
+
+    def desktop_surfaces(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().surfaces(a)
+
+    def desktop_wait(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().wait(a)
+
+    def desktop_verify(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().verify(a)
+
+    def desktop_session(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().session(a)
+
+    def desktop_apps(self,a:dict[str,Any])->dict[str,Any]:
+        if a.get("operation") in ("launch","close"):
+            self._require_desktop_idle()
+        return self._native_desktop().apps(a)
+
+    def desktop_window(self,a:dict[str,Any])->dict[str,Any]:
+        self._require_desktop_idle()
+        return self._native_desktop().window(a)
+
+    def desktop_batch(self,a:dict[str,Any])->dict[str,Any]:
+        return self._native_desktop().batch(a,self._require_desktop_idle)
 
     def window_controls(self,a:dict[str,Any])->dict[str,Any]:
         item=self._target_window(a)
