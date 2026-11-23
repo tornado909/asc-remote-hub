@@ -27,7 +27,7 @@ from urllib.request import Request,urlopen
 from urllib.parse import urlparse
 from asc_remote_commander import Agent
 
-VERSION="1.1.4"
+VERSION="1.1.6"
 
 
 def default_config() -> Path:
@@ -313,7 +313,9 @@ READ_ONLY_JOBS = frozenset({
 })
 GUI_JOBS = frozenset({
     "screenshot","window_screenshot","window_focus","window_controls","window_action","terminal_send",
-    "click_mouse","type_text","press_keys","scroll_mouse"
+    "click_mouse","type_text","press_keys","scroll_mouse",
+    "desktop_status","desktop_windows","desktop_snapshot","desktop_find",
+    "desktop_get","desktop_is","desktop_act"
 })
 MAX_CONCURRENT_JOBS = 4
 

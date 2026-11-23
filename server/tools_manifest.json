@@ -1882,5 +1882,359 @@
         ]
       }
     ]
+  },
+  {
+    "name": "desktop_status",
+    "description": "Read native accessibility engine version and capabilities; Windows only, no screenshots.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_windows",
+    "description": "List visible windows with native stable window IDs. Read-only, no screenshots.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "app": {
+          "type": "string",
+          "description": "Optional application name"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 20000,
+          "description": "Deadline ms"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_snapshot",
+    "description": "Read accessibility tree as JSON with semantic refs @snapshot:eN. No screenshots. Use skeleton for a compact overview, root ref to drill into a subtree.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "window_id": {
+          "type": "string",
+          "description": "Exact w-123 native window id from desktop_windows"
+        },
+        "app": {
+          "type": "string",
+          "description": "Optional exact application name"
+        },
+        "root": {
+          "type": "string",
+          "description": "Optional qualified ref to drill into"
+        },
+        "interactive_only": {
+          "type": "boolean",
+          "description": "Return interactive nodes only; default true"
+        },
+        "compact": {
+          "type": "boolean",
+          "description": "Compact tree; default true"
+        },
+        "skeleton": {
+          "type": "boolean",
+          "description": "Limit overview to shallow levels"
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "description": "Maximum tree depth"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 25000,
+          "description": "Deadline ms"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_find",
+    "description": "Find native accessible elements by role and name. Returns qualified refs; no screenshots.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "window_id": {
+          "type": "string",
+          "description": "Exact w-123 native window id from desktop_windows"
+        },
+        "app": {
+          "type": "string",
+          "description": "Optional exact application name"
+        },
+        "root": {
+          "type": "string",
+          "description": "Optional qualified root ref"
+        },
+        "role": {
+          "type": "string",
+          "description": "Accessible role, e.g. button"
+        },
+        "name": {
+          "type": "string",
+          "description": "Element name"
+        },
+        "exact": {
+          "type": "boolean",
+          "description": "Exact name/role match; default true"
+        },
+        "first": {
+          "type": "boolean",
+          "description": "Return only first match; default false"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 25000,
+          "description": "Deadline ms"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_get",
+    "description": "Read live property of a semantic ref.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Qualified accessibility ref"
+        },
+        "property": {
+          "type": "string",
+          "enum": [
+            "text",
+            "value",
+            "title",
+            "bounds",
+            "role",
+            "states"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "ref"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_is",
+    "description": "Read native accessibility element state.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Qualified accessibility ref"
+        },
+        "property": {
+          "type": "string",
+          "enum": [
+            "visible",
+            "enabled",
+            "checked",
+            "focused",
+            "expanded",
+            "selected"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "ref",
+        "property"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_act",
+    "description": "Execute one strict headless semantic action on a qualified accessibility ref. No physical input, coordinates or screenshots. Windows active-user idle policy is enforced.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Qualified accessibility ref"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "click",
+            "set-value",
+            "type",
+            "clear",
+            "toggle",
+            "check",
+            "uncheck",
+            "select",
+            "expand",
+            "collapse"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "Text required for set-value/type/select only"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 25000,
+          "description": "Deadline ms"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "ref",
+        "action"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
   }
 ]
