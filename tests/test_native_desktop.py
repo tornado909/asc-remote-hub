@@ -110,7 +110,10 @@ class NativeDesktopTests(unittest.TestCase):
         with mock.patch("asc_desktop_native.subprocess.run",return_value=self.response()) as run:
             self.native.act({"ref":"@sabc123:e4","action":"set-value","value":"Привет"})
         args=run.call_args.args[0]
-        self.assertEqual(args[1:4],["set-value","@sabc123:e4","Привет"])
+        self.assertEqual(args[1:4],["set-value","@sabc123:e4","--stdin"])
+        self.assertNotIn("Привет",args)
+        self.assertEqual(run.call_args.kwargs["input"],"Привет".encode("utf-8"))
+        self.assertNotIn("stdin",run.call_args.kwargs)
         for opts in (
             {"ref":"@sabc123:e4","action":"mouse-click"},
             {"ref":"@sabc123:e4","action":"focus"},

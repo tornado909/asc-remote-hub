@@ -1885,13 +1885,24 @@
   },
   {
     "name": "desktop_status",
-    "description": "Read native accessibility engine version and capabilities; Windows only, no screenshots.",
+    "description": "Native desktop engine status and platform capabilities.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "device": {
           "type": "string",
           "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "cli",
+            "ffi"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1915,7 +1926,7 @@
   },
   {
     "name": "desktop_windows",
-    "description": "List visible windows with native stable window IDs. Read-only, no screenshots.",
+    "description": "List native accessibility windows; use exact window ID for subsequent operations.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1925,13 +1936,17 @@
         },
         "app": {
           "type": "string",
-          "description": "Optional application name"
+          "description": "Optional application"
         },
         "timeout_ms": {
           "type": "integer",
+          "description": "Deadline",
           "minimum": 500,
-          "maximum": 20000,
-          "description": "Deadline ms"
+          "maximum": 20000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
         }
       },
       "additionalProperties": false,
@@ -1955,7 +1970,7 @@
   },
   {
     "name": "desktop_snapshot",
-    "description": "Read accessibility tree as JSON with semantic refs @snapshot:eN. No screenshots. Use skeleton for a compact overview, root ref to drill into a subtree.",
+    "description": "Observe a semantic UIA tree. Supports interactive-only, skeleton, subtree refs, and open menu/dialog/shell surfaces. No screenshots.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1963,41 +1978,53 @@
           "type": "string",
           "description": "Exact device ID returned by list_devices (only your own devices)."
         },
-        "window_id": {
+        "engine": {
           "type": "string",
-          "description": "Exact w-123 native window id from desktop_windows"
+          "enum": [
+            "cli",
+            "ffi"
+          ]
         },
         "app": {
           "type": "string",
-          "description": "Optional exact application name"
+          "description": "Optional app"
+        },
+        "window_id": {
+          "type": "string",
+          "description": "Exact native w-ID"
         },
         "root": {
           "type": "string",
-          "description": "Optional qualified ref to drill into"
+          "description": "Optional subtree ref"
+        },
+        "surface": {
+          "type": "string",
+          "description": "Optional UI surface menu/sheet/alert/tray"
         },
         "interactive_only": {
-          "type": "boolean",
-          "description": "Return interactive nodes only; default true"
+          "type": "boolean"
         },
         "compact": {
-          "type": "boolean",
-          "description": "Compact tree; default true"
+          "type": "boolean"
         },
         "skeleton": {
-          "type": "boolean",
-          "description": "Limit overview to shallow levels"
+          "type": "boolean"
         },
         "max_depth": {
           "type": "integer",
+          "description": "Depth",
           "minimum": 1,
-          "maximum": 30,
-          "description": "Maximum tree depth"
+          "maximum": 30
         },
         "timeout_ms": {
           "type": "integer",
+          "description": "Deadline",
           "minimum": 1000,
-          "maximum": 25000,
-          "description": "Deadline ms"
+          "maximum": 25000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
         }
       },
       "additionalProperties": false,
@@ -2021,7 +2048,7 @@
   },
   {
     "name": "desktop_find",
-    "description": "Find native accessible elements by role and name. Returns qualified refs; no screenshots.",
+    "description": "Find accessible role/name, optionally in menu or dialog. Returns qualified ref.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2029,39 +2056,45 @@
           "type": "string",
           "description": "Exact device ID returned by list_devices (only your own devices)."
         },
-        "window_id": {
-          "type": "string",
-          "description": "Exact w-123 native window id from desktop_windows"
-        },
         "app": {
           "type": "string",
-          "description": "Optional exact application name"
+          "description": "Optional app"
+        },
+        "window_id": {
+          "type": "string",
+          "description": "Exact native window ID"
         },
         "root": {
           "type": "string",
-          "description": "Optional qualified root ref"
+          "description": "Optional subtree ref"
+        },
+        "surface": {
+          "type": "string",
+          "description": "Optional UI surface"
         },
         "role": {
           "type": "string",
-          "description": "Accessible role, e.g. button"
+          "description": "Accessible role"
         },
         "name": {
           "type": "string",
-          "description": "Element name"
+          "description": "Accessible name"
         },
         "exact": {
-          "type": "boolean",
-          "description": "Exact name/role match; default true"
+          "type": "boolean"
         },
         "first": {
-          "type": "boolean",
-          "description": "Return only first match; default false"
+          "type": "boolean"
         },
         "timeout_ms": {
           "type": "integer",
+          "description": "Deadline",
           "minimum": 1000,
-          "maximum": 25000,
-          "description": "Deadline ms"
+          "maximum": 25000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
         }
       },
       "additionalProperties": false,
@@ -2085,7 +2118,7 @@
   },
   {
     "name": "desktop_get",
-    "description": "Read live property of a semantic ref.",
+    "description": "Read a property of an accessibility ref; no desktop mutation.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2095,7 +2128,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Qualified accessibility ref"
+          "description": "Qualified @snapshot:eN ref"
         },
         "property": {
           "type": "string",
@@ -2107,6 +2140,10 @@
             "role",
             "states"
           ]
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
         }
       },
       "additionalProperties": false,
@@ -2131,7 +2168,7 @@
   },
   {
     "name": "desktop_is",
-    "description": "Read native accessibility element state.",
+    "description": "Read enabled/checked/visible/focused/expanded/selected state.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2141,7 +2178,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Qualified accessibility ref"
+          "description": "Qualified ref"
         },
         "property": {
           "type": "string",
@@ -2153,6 +2190,10 @@
             "expanded",
             "selected"
           ]
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
         }
       },
       "additionalProperties": false,
@@ -2178,7 +2219,7 @@
   },
   {
     "name": "desktop_act",
-    "description": "Execute one strict headless semantic action on a qualified accessibility ref. No physical input, coordinates or screenshots. Windows active-user idle policy is enforced.",
+    "description": "Native semantic action. Private text input goes via stdin, never process argv. Optional event-aware wait_for/wait_for_gone and native delivery/retry disposition. Requires user-idle policy.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2188,7 +2229,14 @@
         },
         "ref": {
           "type": "string",
-          "description": "Qualified accessibility ref"
+          "description": "Qualified ref"
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "cli",
+            "ffi"
+          ]
         },
         "action": {
           "type": "string",
@@ -2207,13 +2255,31 @@
         },
         "value": {
           "type": "string",
-          "description": "Text required for set-value/type/select only"
+          "description": "Text for set-value/type/select"
         },
         "timeout_ms": {
           "type": "integer",
+          "description": "Deadline",
           "minimum": 1000,
-          "maximum": 25000,
-          "description": "Deadline ms"
+          "maximum": 25000
+        },
+        "wait_for": {
+          "type": "string",
+          "description": "Post-action role:text selector to appear"
+        },
+        "wait_for_gone": {
+          "type": "string",
+          "description": "Post-action role:text selector to disappear"
+        },
+        "wait_timeout_ms": {
+          "type": "integer",
+          "description": "Wait timeout",
+          "minimum": 200,
+          "maximum": 30000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
         }
       },
       "additionalProperties": false,
@@ -2221,6 +2287,449 @@
         "device",
         "ref",
         "action"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_surfaces",
+    "description": "List currently open native app menu, sheet, popup and alert surfaces.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "app": {
+          "type": "string",
+          "description": "Exact application name"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "app"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_wait",
+    "description": "Native condition wait, not a sleep: element actionable/visible, window, text, menu, notification or lifecycle event; no input.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "element",
+            "window",
+            "text",
+            "menu",
+            "menu-closed",
+            "event",
+            "notification"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref for element mode"
+        },
+        "predicate": {
+          "type": "string",
+          "enum": [
+            "exists",
+            "enabled",
+            "visible",
+            "actionable"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "description": "Actionability verb"
+        },
+        "window": {
+          "type": "string",
+          "description": "Window title fragment"
+        },
+        "event": {
+          "type": "string",
+          "description": "Native event kind"
+        },
+        "window_id": {
+          "type": "string",
+          "description": "Exact native window ID"
+        },
+        "app": {
+          "type": "string",
+          "description": "App name"
+        },
+        "text": {
+          "type": "string",
+          "description": "Search text (not secrets)"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "description": "Wait deadline",
+          "minimum": 200,
+          "maximum": 30000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "mode"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_verify",
+    "description": "Confidential value wait: compares a UI field in memory. Expected value never appears in process arguments or result.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Qualified field ref"
+        },
+        "value": {
+          "type": "string",
+          "description": "Expected private text"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "description": "Deadline",
+          "minimum": 500,
+          "maximum": 25000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "ref",
+        "value"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_session",
+    "description": "Start/list/end/prune isolated ref namespaces with traces and screenshots disabled. Stop using ended sessions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "start",
+            "list",
+            "end",
+            "gc"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional label for new session"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        },
+        "older_than_seconds": {
+          "type": "integer",
+          "description": "GC ended sessions after age",
+          "minimum": 3600,
+          "maximum": 2592000
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "operation"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_apps",
+    "description": "List, launch, or gracefully close installed apps by registered name. Launch and close enforce user-idle policy; no shell, force-kill, or arbitrary arguments.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "list",
+            "launch",
+            "close"
+          ]
+        },
+        "app": {
+          "type": "string",
+          "description": "Registered app name"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "description": "Deadline",
+          "minimum": 500,
+          "maximum": 30000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "operation"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_window",
+    "description": "Move/resize/minimize/maximize/restore/focus an exact native window with user-idle guard.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "focus",
+            "move",
+            "resize",
+            "minimize",
+            "maximize",
+            "restore"
+          ]
+        },
+        "app": {
+          "type": "string",
+          "description": "App name"
+        },
+        "window_id": {
+          "type": "string",
+          "description": "Native w-ID"
+        },
+        "width": {
+          "type": "integer",
+          "description": "Width",
+          "minimum": 100,
+          "maximum": 7680
+        },
+        "height": {
+          "type": "integer",
+          "description": "Height",
+          "minimum": 100,
+          "maximum": 4320
+        },
+        "x": {
+          "type": "integer",
+          "description": "X coordinate",
+          "minimum": -20000,
+          "maximum": 20000
+        },
+        "y": {
+          "type": "integer",
+          "description": "Y coordinate",
+          "minimum": -20000,
+          "maximum": 20000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "operation"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "desktop_batch",
+    "description": "Bounded sequential semantic workflow of 1..12 typed operations in a single MCP request. Non-atomic; stops on unsafe/unknown delivery. Private text via stdin and no native batch JSON in command line.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact device ID returned by list_devices (only your own devices)."
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "status",
+                  "windows",
+                  "apps",
+                  "surfaces",
+                  "snapshot",
+                  "find",
+                  "get",
+                  "is",
+                  "wait",
+                  "verify",
+                  "act",
+                  "window"
+                ]
+              },
+              "args": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "op",
+              "args"
+            ]
+          }
+        },
+        "stop_on_error": {
+          "type": "boolean"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "description": "Total deadline",
+          "minimum": 1000,
+          "maximum": 60000
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Optional isolated session_id from desktop_session(start)"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "steps"
       ]
     },
     "annotations": {
