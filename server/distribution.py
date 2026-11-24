@@ -16,7 +16,7 @@ import re
 import tarfile
 import tempfile
 
-RELEASE = "1.1.7"
+RELEASE = "1.1.8"
 CLI = f"cli-{RELEASE}.tgz"
 AGENT = f"asc-remote-hub-agent-{RELEASE}.tar.gz"
 ALLOWED_FILES = (
