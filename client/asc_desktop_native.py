@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import time
+import threading
 from typing import Any
 from asc_desktop_workflows import WorkflowMixin,WINDOW_SURFACES,session_scope,native_scope,string,number,boolean,ref
 
@@ -103,14 +104,27 @@ class NativeDesktop(WorkflowMixin):
         self.exe = native_executable()
         self.state = Path(state_dir).resolve() / "native-desktop"
         self._ffi_backend = None
+        self._ffi_init_lock = threading.Lock()
+        self._deadline_local = threading.local()
         # IMPORTANT: Do not mkdir this on Windows. The native engine must
         # create the state root itself with a private DACL; a Python-created
         # directory may inherit broad ACLs and is rightly rejected.
 
+    @property
+    def _batch_deadline(self) -> float | None:
+        # Two concurrent sessions must NEVER overwrite one another's timeout.
+        return getattr(self._deadline_local,"deadline",None)
+
+    @_batch_deadline.setter
+    def _batch_deadline(self,value:float|None)->None:
+        self._deadline_local.deadline=value
+
     def _ffi(self):
         if self._ffi_backend is None:
-            from asc_desktop_ffi import DesktopFFI
-            self._ffi_backend = DesktopFFI(self.state)
+            with self._ffi_init_lock:
+                if self._ffi_backend is None:
+                    from asc_desktop_ffi import DesktopFFI
+                    self._ffi_backend = DesktopFFI(self.state)
         return self._ffi_backend
 
     def _run(self,command:str,args:list[str],timeout_ms:int=6000,*,
@@ -334,7 +348,9 @@ class NativeDesktop(WorkflowMixin):
             stdin_text=string(value,"value",4000,True)
             command.append("--stdin")
         elif action=="select":
-            command.append(string(value,"value",256,True))
+            # Upstream CLI select requires a positional VALUE and does not
+            # support --stdin. Never expose that user-provided text in argv.
+            value=string(value,"value",256,True)
         elif value is not None:
             raise ValueError("Only set-value, type or select accept text")
         command+=["--timeout-ms",str(timeout)]
@@ -356,7 +372,46 @@ class NativeDesktop(WorkflowMixin):
         if engine=="ffi":
             if ready or gone:
                 raise ValueError("FFI actions do not support built-in post-action waits; use desktop_wait")
+            deadline=self._batch_deadline
+            if deadline is not None:
+                remaining=round((deadline-time.monotonic())*1000)
+                if remaining<=0:
+                    raise NativeDesktopError("TIMEOUT",{"delivery":"not_delivered","retry":"safe"})
+                timeout=min(timeout,remaining)
             return self._ffi().act(target,action,value,timeout,session_scope(args))
         if engine!="cli":raise ValueError("Engine must be cli or ffi")
-        return self._run(action,command,timeout+(wait_timeout or 0),
+        if action=="select":
+            if ready or gone:
+                raise ValueError("Use desktop_wait after selection; no CLI text arguments are permitted")
+            # Select via verified in-process library even for default CLI mode:
+            # the original binary has NO --stdin option for select.
+            from asc_desktop_ffi import available as ffi_available
+            if not ffi_available():
+                raise NativeDesktopError(
+                    "SELECT_REQUIRES_FFI",
+                    {"delivery":"not_delivered","retry":"safe"})
+            deadline=self._batch_deadline
+            if deadline is not None:
+                remaining=round((deadline-time.monotonic())*1000)
+                if remaining<=0:
+                    raise NativeDesktopError("TIMEOUT",{"delivery":"not_delivered","retry":"safe"})
+                timeout=min(timeout,remaining)
+            return self._ffi().act(target,"select",value,timeout,session_scope(args))
+        result=self._run(action,command,timeout+(wait_timeout or 0),
                          session_id=session_scope(args),input_text=stdin_text)
+        if action in ("set-value","type"):
+            # Even the *result* may contain a field's contents. Report only
+            # native, typed delivery status to avoid echoing sensitive text.
+            data=result.get("data") if isinstance(result,dict) else None
+            clean={}
+            if isinstance(data,dict):
+                disposition=data.get("disposition")
+                if isinstance(disposition,dict):
+                    clean["disposition"]={k:disposition[k] for k in ("delivery","retry")
+                                          if k in disposition and isinstance(disposition[k],str)}
+                for key in ("action_effect_verified","cursor_unchanged",
+                            "foreground_unchanged","requires_new_snapshot"):
+                    if isinstance(data.get(key),bool):
+                        clean[key]=data[key]
+            return {"ok":True,"data":clean,"input_redacted":True}
+        return result

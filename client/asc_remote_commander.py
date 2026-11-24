@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-VERSION = "1.1.7"
+VERSION = "1.1.8"
 MAX_INPUT = 2_000_000
 MAX_TEXT = 100_000
 MAX_FILE_WRITE = 256_000

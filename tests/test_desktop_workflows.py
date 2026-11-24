@@ -188,10 +188,48 @@ class WorkflowTests(unittest.TestCase):
                 {"op":"find","args":{"role":"button","name":"Save","app":"Editor","first":True}},
                 {"op":"act","args":{"ref_from":0,"action":"click"}},
             ]},native)
-        self.assertTrue(batch["ok"])
+        self.assertFalse(batch["ok"])
+        self.assertTrue(batch["verification_required"])
         native.assert_called_once()
         self.assertEqual(act.call_args.args[0]["ref"],"@sabc:e4")
         self.assertFalse(batch["atomic"])
+
+    def test_second_mutation_requires_explicit_verified_condition(self):
+        first={"ok":True,"data":{"disposition":{"delivery":"delivered_unverified","retry":"unsafe"}}}
+        with mock.patch.object(self.engine,"act",return_value=first) as action:
+            result=self.engine.batch({"steps":[
+                {"op":"act","args":{"ref":"@sabc:e1","action":"click"}},
+                {"op":"act","args":{"ref":"@sabc:e2","action":"click"}},
+            ]},lambda:None)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["steps_completed"],2)
+        self.assertEqual(result["results"][1]["code"],"PREVIOUS_ACTION_UNVERIFIED")
+        action.assert_called_once()
+
+    def test_explicit_wait_confirms_before_followup_action(self):
+        unverified={"ok":True,"data":{"disposition":{"delivery":"delivered_unverified","retry":"unsafe"}}}
+        confirmed={"ok":True,"data":{"disposition":{"delivery":"delivered_verified","retry":"unsafe"}}}
+        with mock.patch.object(self.engine,"act",side_effect=[unverified,confirmed]) as action, \
+             mock.patch.object(self.engine,"wait",return_value={"ok":True,"data":{"matched":True}}) as observed:
+            result=self.engine.batch({"steps":[
+                {"op":"act","args":{"ref":"@sabc:e1","action":"click"}},
+                {"op":"wait","args":{"mode":"window","window":"Completed"}},
+                {"op":"act","args":{"ref":"@sabc:e2","action":"click"}},
+            ]},lambda:None)
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["verification_required"])
+        self.assertEqual(action.call_count,2)
+        observed.assert_called_once()
+
+    def test_mutating_fail_closed_even_when_native_retry_is_safe(self):
+        refusal=NativeDesktopError("STALE_REF",{"delivery":"not_delivered","retry":"safe"})
+        with mock.patch.object(self.engine,"act",side_effect=refusal) as act:
+            result=self.engine.batch({"stop_on_error":False,"steps":[
+                {"op":"act","args":{"ref":"@sabc:e1","action":"click"}},
+                {"op":"act","args":{"ref":"@sabc:e2","action":"click"}},
+            ]},lambda:None)
+        self.assertEqual(result["steps_completed"],1)
+        act.assert_called_once()
 
     def test_batch_rejects_bad_steps_before_any_action(self):
         native=mock.Mock()
@@ -262,6 +300,136 @@ class WorkflowTests(unittest.TestCase):
             self.assertLess(process.call_args.kwargs["timeout"],1.0)
         finally:
             self.engine._batch_deadline=None
+
+    def test_batch_negative_verification_must_not_claim_success_or_continue(self):
+        calls=[]
+        with mock.patch.object(self.engine,"verify",return_value={
+                "ok":False,"matched":False,"code":"TIMEOUT",
+                "observed_value_redacted":True}) as verify, \
+             mock.patch.object(self.engine,"act",side_effect=lambda x:calls.append(x)) as act:
+            result=self.engine.batch({"stop_on_error":False,"steps":[
+                {"op":"verify","args":{"ref":"@sabc:e1","value":"expected","timeout_ms":500}},
+                {"op":"act","args":{"ref":"@sabc:e2","action":"click"}},
+            ]},lambda:None)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["steps_completed"],1)
+        self.assertEqual(result["results"][0]["code"],"TIMEOUT")
+        self.assertFalse(result["results"][0]["verified"])
+        self.assertNotIn("expected",str(result))
+        act.assert_not_called()
+        verify.assert_called_once()
+
+    def test_batch_unmatched_even_with_ok_true_does_not_continue(self):
+        with mock.patch.object(self.engine,"verify",return_value={
+                "ok":True,"matched":False}) as verify, \
+             mock.patch.object(self.engine,"act") as act:
+            result=self.engine.batch({"steps":[
+                {"op":"verify","args":{"ref":"@sabc:e1","value":"secret"}},
+                {"op":"act","args":{"ref":"@sabc:e2","action":"click"}},
+            ]},lambda:None)
+        self.assertEqual(result["results"][0]["code"],"VERIFY_NOT_MATCHED")
+        self.assertFalse(result["ok"])
+        act.assert_not_called()
+
+    def test_batch_wait_error_does_not_continue_to_mutation(self):
+        with mock.patch.object(self.engine,"wait",return_value={"ok":False,"code":"TIMEOUT"}), \
+             mock.patch.object(self.engine,"act") as act:
+            result=self.engine.batch({"stop_on_error":False,"steps":[
+                {"op":"wait","args":{"mode":"menu","timeout_ms":250}},
+                {"op":"act","args":{"ref":"@sabc:e2","action":"click"}},
+            ]},lambda:None)
+        self.assertEqual(result["steps_completed"],1)
+        self.assertEqual(result["results"][0]["code"],"TIMEOUT")
+        act.assert_not_called()
+
+    def test_select_uses_ffi_memory_even_when_cli_is_default(self):
+        secret="Sensitive Choice Label"
+        backend=mock.Mock()
+        backend.act.return_value={"ok":True,"input_redacted":True}
+        with mock.patch("asc_desktop_ffi.available",return_value=True), \
+             mock.patch.object(self.engine,"_ffi",return_value=backend), \
+             mock.patch.object(self.engine,"_run",side_effect=AssertionError("No CLI")):
+            result=self.engine.act({"ref":"@sabc:e1","action":"select","value":secret})
+        self.assertTrue(result["ok"])
+        backend.act.assert_called_once_with("@sabc:e1","select",secret,7000,None)
+
+    def test_unsupported_combo_selection_fails_without_mouse_or_cli_fallback(self):
+        backend=mock.Mock()
+        backend.act.side_effect=NativeDesktopError(
+            "ACTION_NOT_SUPPORTED",{"delivery":"not_delivered","retry":"safe"})
+        with mock.patch("asc_desktop_ffi.available",return_value=True), \
+             mock.patch.object(self.engine,"_ffi",return_value=backend), \
+             mock.patch.object(self.engine,"_run") as cli:
+            with self.assertRaises(NativeDesktopError) as failure:
+                self.engine.act({"ref":"@sabc:e1","action":"select",
+                                 "value":"Second"})
+        self.assertEqual(failure.exception.code,"ACTION_NOT_SUPPORTED")
+        self.assertEqual(failure.exception.disposition["delivery"],"not_delivered")
+        cli.assert_not_called()
+        backend.act.assert_called_once()
+
+    def test_select_refuses_without_verified_ffi_and_never_spawns_cli(self):
+        with mock.patch("asc_desktop_ffi.available",return_value=False), \
+             mock.patch.object(self.engine,"_run") as command:
+            with self.assertRaises(NativeDesktopError) as failure:
+                self.engine.act({"ref":"@sabc:e1","action":"select","value":"secret"})
+        self.assertEqual(failure.exception.code,"SELECT_REQUIRES_FFI")
+        self.assertEqual(failure.exception.disposition["retry"],"safe")
+        command.assert_not_called()
+
+    def test_mutation_response_never_echos_private_value(self):
+        secret="Unique_private_value_test_423123"
+        returned={"ok":True,"data":{
+            "value":secret,"text":secret,
+            "post_state":{"value":secret},
+            "disposition":{"delivery":"delivered_verified","retry":"unsafe"},
+            "cursor_unchanged":True}}
+        with mock.patch("asc_desktop_native.subprocess.run",return_value=self.reply(returned)):
+            result=self.engine.act({"ref":"@sabc:e1","action":"set-value","value":secret})
+        self.assertEqual(result["data"]["disposition"]["delivery"],"delivered_verified")
+        self.assertTrue(result["input_redacted"])
+        self.assertNotIn(secret,str(result))
+
+    def test_thread_local_batch_deadline_isolated_across_sessions(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        barrier=threading.Barrier(2)
+        def observer(session,limit):
+            self.engine._batch_deadline=limit
+            barrier.wait(timeout=5)
+            observed=self.engine._batch_deadline
+            self.engine._batch_deadline=None
+            return session,observed
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a=pool.submit(observer,"session-one",10.0)
+            b=pool.submit(observer,"session-two",20.0)
+            observed=dict([a.result(timeout=8),b.result(timeout=8)])
+        self.assertEqual(observed,{"session-one":10.0,"session-two":20.0})
+        self.assertIsNone(self.engine._batch_deadline)
+
+    def test_concurrent_batch_read_sessions_keep_independent_ceilings(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import threading,time
+        barrier=threading.Barrier(2)
+        values=[]
+        lock=threading.Lock()
+        def handler(args):
+            barrier.wait(timeout=5)
+            deadline=self.engine._batch_deadline
+            time.sleep(0.02)
+            with lock:
+                values.append((args.get("session_id"),deadline))
+            return {"ok":True,"data":{"session_id":args.get("session_id")}}
+        with mock.patch.object(self.engine,"status",side_effect=handler):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                f1=pool.submit(self.engine.batch,{"session_id":"agentA","timeout_ms":2500,
+                   "steps":[{"op":"status","args":{}}]},lambda:None)
+                f2=pool.submit(self.engine.batch,{"session_id":"agentB","timeout_ms":4500,
+                   "steps":[{"op":"status","args":{}}]},lambda:None)
+                x,y=f1.result(timeout=8),f2.result(timeout=8)
+        self.assertTrue(x["ok"] and y["ok"])
+        self.assertEqual({a for a,_ in values},{"agentA","agentB"})
+        self.assertGreater(abs(values[0][1]-values[1][1]),1.5)
 
     def test_public_manifest_matches_semantic_agent(self):
         x=json.loads((ROOT/"server/tools_manifest.json").read_text())

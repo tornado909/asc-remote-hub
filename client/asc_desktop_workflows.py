@@ -152,16 +152,26 @@ class WorkflowMixin:
         t=number(a.get("timeout_ms"),"timeout_ms",10000,500,25000)
         sid=session_scope(a)
         start=time.monotonic()
+        deadline=start+t/1000
+        batch_deadline=getattr(self,"_batch_deadline",None)
+        if batch_deadline is not None:
+            deadline=min(deadline,batch_deadline)
         attempts=0
         while True:
+            remaining=deadline-time.monotonic()
+            if remaining<=0:
+                return {"ok":False,"matched":False,"code":"TIMEOUT","attempts":attempts,
+                        "elapsed_ms":round((time.monotonic()-start)*1000),"observed_value_redacted":True}
             attempts+=1
-            response=self._run("get",[target,"--property","value"],timeout_ms=min(5000,t),session_id=sid)
+            response=self._run("get",[target,"--property","value"],
+                               timeout_ms=max(50,min(5000,round(remaining*1000))),
+                               session_id=sid)
             data=response.get("data")
             observed=data.get("value") if isinstance(data,dict) else data if isinstance(data,str) else None
             if observed==expected:
                 return {"ok":True,"matched":True,"attempts":attempts,
                         "elapsed_ms":round((time.monotonic()-start)*1000),"observed_value_redacted":True}
-            remaining=t/1000-(time.monotonic()-start)
+            remaining=deadline-time.monotonic()
             if remaining<=0:
                 return {"ok":False,"matched":False,"code":"TIMEOUT","attempts":attempts,
                         "elapsed_ms":round((time.monotonic()-start)*1000),"observed_value_redacted":True}
@@ -212,6 +222,7 @@ class WorkflowMixin:
         self._batch_deadline=start+budget/1000
         try:
             results=[]
+            needs_verification=False
             mapping={"status":self.status,"windows":self.windows,"apps":self.apps,
                      "surfaces":self.surfaces,"snapshot":self.snapshot,"find":self.find,
                      "get":self.get,"is":self.is_state,"wait":self.wait,"verify":self.verify,
@@ -224,15 +235,49 @@ class WorkflowMixin:
                                     "disposition":{"delivery":"unknown","retry":"unknown"}})
                     break
                 args["session_id"]=sid
+                is_mutation=op in ("act","window") or (op=="apps" and args.get("operation")!="list")
+                if needs_verification and is_mutation:
+                    results.append({"index":i,"op":op,"ok":False,
+                                    "code":"PREVIOUS_ACTION_UNVERIFIED",
+                                    "disposition":{"delivery":"not_delivered","retry":"safe"},
+                                    "requires_explicit_verification":True})
+                    break
                 try:
                     if "ref_from" in args:
                         j=args.pop("ref_from")
                         args["ref"]=self._find_ref(results[j]["result"])
                     if "timeout_ms" in args:
                         args["timeout_ms"]=min(number(args["timeout_ms"],"timeout_ms",7000,200,60000),max(200,budget-elapsed))
-                    if op in ("act","window") or (op=="apps" and args.get("operation")!="list"):
+                    if is_mutation:
                         mutate_preflight()
                     value=mapping[op](args)
+                    # A native operation can return a structured negative result
+                    # without raising. A failed verify/wait must NEVER become a
+                    # successful batch step followed by the next mutation.
+                    if not isinstance(value,dict) or value.get("ok") is not True:
+                        code=(value.get("code") or "OPERATION_FAILED") if isinstance(value,dict) else "INVALID_RESULT"
+                        if not isinstance(code,str) or not re.fullmatch(r"[A-Z][A-Z_0-9]{1,48}",code):
+                            code="OPERATION_FAILED"
+                        results.append({"index":i,"op":op,"ok":False,"code":code,
+                                        "disposition":{"delivery":"not_delivered","retry":"safe"},
+                                        "verified":False})
+                        break
+                    if op=="verify" and value.get("matched") is not True:
+                        results.append({"index":i,"op":op,"ok":False,"code":"VERIFY_NOT_MATCHED",
+                                        "disposition":{"delivery":"not_delivered","retry":"safe"},
+                                        "verified":False})
+                        break
+                    if is_mutation:
+                        payload=value.get("data")
+                        disposition=payload.get("disposition") if isinstance(payload,dict) else None
+                        delivery=disposition.get("delivery") if isinstance(disposition,dict) else None
+                        # Without explicit native confirmation, a successful
+                        # invocation is still *not* proof of an achieved effect.
+                        needs_verification=(delivery!="delivered_verified")
+                    elif op in ("verify","wait"):
+                        # Only a successful explicit condition can clear the
+                        # need to observe before the next mutation.
+                        needs_verification=False
                     if len(json.dumps(value,ensure_ascii=False,default=str).encode("utf-8"))>12000:
                         data=value.get("data",{}) if isinstance(value,dict) else {}
                         safe_data={key:data[key] for key in (
@@ -245,15 +290,16 @@ class WorkflowMixin:
                     results.append({"index":i,"op":op,"ok":True,"result":value})
                 except Exception as exc:
                     code=getattr(exc,"code",None) or ("INVALID_ARGS" if isinstance(exc,ValueError) else "ENGINE_FAILED")
-                    is_mutation=op in ("act","window") or (op=="apps" and args.get("operation")!="list")
                     known_local_refusal=isinstance(exc,ValueError)
                     safe=known_local_refusal or not is_mutation
                     disposition=getattr(exc,"disposition",None) or {
                         "delivery":"not_delivered" if safe else "unknown",
                         "retry":"safe" if safe else "unknown"}
                     results.append({"index":i,"op":op,"ok":False,"code":code,"disposition":disposition})
-                    if stop or disposition.get("retry")!="safe":break
-            return {"ok":len(results)==len(entries) and all(x["ok"] for x in results),
+                    if stop or is_mutation or disposition.get("retry")!="safe":break
+            confirmed=len(results)==len(entries) and all(x["ok"] for x in results) and not needs_verification
+            return {"ok":confirmed,
+                    "verification_required":needs_verification,
                     "atomic":False,"order":"sequential","steps_total":len(entries),
                     "steps_completed":len(results),"results":results,
                     "elapsed_ms":round((time.monotonic()-start)*1000)}
