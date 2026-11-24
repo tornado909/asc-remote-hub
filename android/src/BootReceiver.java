@@ -1,0 +1,1 @@
+package ru.ascdev.remotehub;import android.content.*;public final class BootReceiver extends BroadcastReceiver{public void onReceive(Context c,Intent i){Config cfg=new Config(c);if(cfg.paired()&&cfg.enabled())try{c.startForegroundService(new Intent(c,HubService.class));}catch(IllegalStateException e){}}}

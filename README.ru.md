@@ -1,10 +1,10 @@
 # ASC Remote Hub
 
-**Универсальный MCP-хаб для ChatGPT, Cursor, OpenMausBot и других MCP-клиентов с агентами Windows и Linux.**
+**Универсальный MCP-хаб для ChatGPT, Cursor, OpenMausBot и других MCP-клиентов с агентами Windows, Linux и Android.**
 
 Позволяет работать с файлами, терминалом, процессами и, если имеется интерактивный рабочий стол, экраном удалённого компьютера. Трафик проходит через **ваш HTTPS-сервер**, без платного ретранслятора Desktop Commander и без OpenAI Platform Tunnel.
 
-[English README](README.md) · [Установка сервера](docs/DEPLOYMENT.md) · [Безопасность](SECURITY.md) · [GUI без вмешательства](docs/WINDOWS_GUI.ru.md) · [Изолированный GUI Engine без VM](docs/ISOLATED_GUI.md) · [Мост ASC Game Agent](docs/GAME_AGENT.md)
+[English README](README.md) · [Установка сервера](docs/DEPLOYMENT.md) · [Безопасность](SECURITY.md) · [GUI без вмешательства](docs/WINDOWS_GUI.ru.md) · [Изолированный GUI Engine без VM](docs/ISOLATED_GUI.md) · [Мост ASC Game Agent](docs/GAME_AGENT.md) · [Android](docs/ANDROID.ru.md)
 
 > [!IMPORTANT]
 > Проект независимый, не связан с OpenAI или Desktop Commander. У хаба нет платных квот на команды; **ограничения ChatGPT** зависят от вашей подписки и поддержки пользовательских MCP-инструментов. Хостинг и домен вы оплачиваете или содержите самостоятельно.
@@ -54,6 +54,10 @@ docker compose up -d --build hub
 ```
 
 Настройте внешний HTTPS reverse proxy с маршрутом на порт `18765` либо используйте включаемый профиль Caddy (если порты 80/443 свободны). Все OAuth-ссылки и скачиваемые установщики формируются автоматически по **`ASC_HUB_URL`**, без изменения исходников.
+
+## Android (0.4.0)
+
+Android 11 и новее, без Root и ADB. Скачайте подписанный APK со своего хаба по пути `/downloads/asc-remote-hub-android.apk`, предоставьте разрешения, укажите собственный HTTPS-адрес сервера и код привязки. Поддерживаются запуск приложений, дерево интерфейса, сенсорные жесты (включая мультитач) и работа с общими файлами. Для управления экран должен быть включён и разблокирован. [Инструкция и ограничения](docs/ANDROID.ru.md).
 
 ## Установка агента
 

@@ -2745,5 +2745,355 @@
         ]
       }
     ]
+  },
+  {
+    "name": "android_apps",
+    "description": "List launchable applications on your paired Android device.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact paired Android device ID returned by list_devices",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "android_launch",
+    "description": "Request launch of a package on your own unlocked Android device. Requires enabled Accessibility service; verify with android_ui_tree.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact paired Android device ID returned by list_devices",
+          "maxLength": 100
+        },
+        "package": {
+          "type": "string",
+          "description": "Package name from android_apps",
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "device",
+        "package"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "android_ui_tree",
+    "description": "Read the visible accessibility node tree of the active app on an unlocked paired Android device. Password fields excluded. Use fresh snapshot for actions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact paired Android device ID returned by list_devices",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "android_ui_action",
+    "description": "Perform a single accessibility action on a fresh visible node; back/home/recents need no node. Does not unlock the device.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact paired Android device ID returned by list_devices",
+          "maxLength": 100
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "click",
+            "long_click",
+            "scroll_forward",
+            "scroll_backward",
+            "set_text",
+            "back",
+            "home",
+            "recents"
+          ]
+        },
+        "snapshot": {
+          "type": "string",
+          "description": "Snapshot ID from android_ui_tree",
+          "maxLength": 100
+        },
+        "node_id": {
+          "type": "integer",
+          "description": "Visible node ID",
+          "minimum": 0,
+          "maximum": 199
+        },
+        "text": {
+          "type": "string",
+          "description": "Text for a non-password editable field",
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "device",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "android_gesture",
+    "description": "Perform real touchscreen gestures on your paired unlocked Android device, including tap, hold, swipe, drag and up to five simultaneous strokes. Obtain fresh android_ui_tree snapshot and screen dimensions first. Coordinates in screen pixels; gesture may interrupt local touches. Returns actual completion/cancellation status. Refresh snapshot after each gesture; do not retry unknown results blindly.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact paired Android device ID returned by list_devices",
+          "maxLength": 100
+        },
+        "snapshot": {
+          "type": "string",
+          "description": "Snapshot ID from android_ui_tree",
+          "maxLength": 100
+        },
+        "strokes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Screen X in pixels from android_ui_tree"
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Screen Y in pixels from android_ui_tree"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 64,
+                "description": "One point for tap or hold, two for swipe, more for curved path"
+              },
+              "start_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000,
+                "description": "Start delay, default 0. Equal starts enable multitouch."
+              },
+              "duration_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3000,
+                "description": "Touch duration in milliseconds"
+              }
+            },
+            "required": [
+              "points",
+              "duration_ms"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "device",
+        "snapshot",
+        "strokes"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "android_file_read",
+    "description": "Read a binary chunk of a shared-storage file as base64. Continue from next_offset until eof. No access to private app data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact paired Android device ID returned by list_devices",
+          "maxLength": 100
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute or shared-root-relative path",
+          "maxLength": 4096
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Byte offset",
+          "minimum": 0,
+          "maximum": 1099511627776
+        },
+        "length": {
+          "type": "integer",
+          "description": "Maximum bytes per chunk",
+          "minimum": 1,
+          "maximum": 65536
+        }
+      },
+      "required": [
+        "device",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "android_file_write",
+    "description": "Upload binary file chunks to shared storage. Offset 0 creates a new file; subsequent offsets must equal file size. Existing destination is never overwritten at offset 0.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Exact paired Android device ID returned by list_devices",
+          "maxLength": 100
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute or shared-root-relative path",
+          "maxLength": 4096
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Byte offset",
+          "minimum": 0,
+          "maximum": 1099511627776
+        },
+        "data_base64": {
+          "type": "string",
+          "description": "Base64 encoded chunk, at most 65536 decoded bytes",
+          "maxLength": 88000
+        }
+      },
+      "required": [
+        "device",
+        "path",
+        "offset",
+        "data_base64"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    },
+    "securitySchemes": [
+      {
+        "type": "oauth2",
+        "scopes": [
+          "remote.access"
+        ]
+      }
+    ]
   }
 ]

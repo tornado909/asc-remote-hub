@@ -49,7 +49,7 @@ URL_RE = re.compile(r"https?://([A-Za-z0-9_.:-]+)", re.I)
 PUBLIC_HOSTS = {"github.com", "api.github.com", "raw.githubusercontent.com",
                 "chatgpt.com", "openai.com", "python.org", "www.python.org",
                 "nodejs.org", "npmjs.org", "registry.npmjs.org", "learn.microsoft.com",
-                "cursor.com", "www.cursor.com"}
+                "cursor.com", "www.cursor.com", "schemas.android.com"}
 EXAMPLE_SUFFIXES = ("example.com", "example.org", "example.net", "example.test",
                     "example.invalid", ".example", ".test", ".invalid")
 

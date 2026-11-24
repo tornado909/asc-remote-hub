@@ -1,10 +1,10 @@
 # ASC Remote Hub
 
-**Self-hosted, multi-user MCP gateway for ChatGPT, Cursor, OpenMausBot, and other MCP clients connected to your Windows/Linux computers.**
+**Self-hosted, multi-user MCP gateway for ChatGPT, Cursor, OpenMausBot, and other MCP clients connected to your Windows/Linux computers and Android devices.**
 
 Run commands, inspect and edit files, manage background processes, and (on an interactive Windows desktop) operate the screen from ChatGPT, through infrastructure you control — **without a paid Desktop Commander relay or an OpenAI Platform tunnel**.
 
-[Русский README](README.ru.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security model](SECURITY.md) · [Safe Windows GUI](docs/WINDOWS_GUI.md) · [Isolated GUI Engine (no VM)](docs/ISOLATED_GUI.md) · [Optional Game Agent bridge](docs/GAME_AGENT.md)
+[Русский README](README.ru.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security model](SECURITY.md) · [Safe Windows GUI](docs/WINDOWS_GUI.md) · [Isolated GUI Engine (no VM)](docs/ISOLATED_GUI.md) · [Optional Game Agent bridge](docs/GAME_AGENT.md) · [Android](docs/ANDROID.md)
 
 > [!IMPORTANT]
 > ASC Remote Hub is an independent community project, not affiliated with OpenAI, ChatGPT, or Desktop Commander. It imposes **no per-tool-call quota**, but your ChatGPT plan and its MCP capabilities may still have limits. Server hosting, networking, and software dependencies are your responsibility.
@@ -12,7 +12,7 @@ Run commands, inspect and edit files, manage background processes, and (on an in
 ## How it works
 
 ```text
-ChatGPT ── HTTPS + OAuth ──► Your ASC Remote Hub ── outbound HTTPS polling ──► Your Windows / Linux agents
+ChatGPT ── HTTPS + OAuth ──► Your ASC Remote Hub ── outbound HTTPS polling ──► Your Windows / Linux / Android agents
                                 │
                         SQLite (per-user data)
 ```
@@ -77,6 +77,10 @@ docker compose --profile public up -d --build
 ```
 
 The `ASC_HUB_URL` value controls OAuth discovery, callback links, downloadable agent packages and the command displayed on your hub website. **No source-code editing is needed to change the domain.** See [deployment details](docs/DEPLOYMENT.md).
+
+## Connect an Android device (0.4.0)
+
+Android 11 or newer, no root or ADB required. Download the signed APK from your own hub at `/downloads/asc-remote-hub-android.apk`. Enable the requested permissions, enter your own HTTPS server address and a one-time pairing code from its dashboard. The agent supports semantic UI actions, real touchscreen gestures (including multitouch), app launching and shared-storage file operations. The screen must be on and unlocked for UI control. [Android setup and limitations](docs/ANDROID.md).
 
 ## Connect a computer
 

@@ -17,7 +17,8 @@
 *.log.*
 /*.tar.gz
 /*.tgz
-/server/static/downloads/
+/server/static/downloads/*
+!/server/static/downloads/asc-remote-hub-android.apk
 /server/static/*.tgz
 **/__pycache__/
 *.pyc

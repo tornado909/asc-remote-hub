@@ -1242,6 +1242,11 @@ class Handler(BaseHTTPRequestHandler):
             name = CLI if path=="/cli.tgz" else path.rsplit("/",1)[-1]
             return self.send(200,self.hub.public_packages[name].read_bytes(),
                              mimetype="application/gzip")
+        if path=="/downloads/asc-remote-hub-android.apk":
+            apk=Path(__file__).parent/"static/downloads/asc-remote-hub-android.apk"
+            if not apk.is_file():
+                raise Failure(404,"Android APK unavailable")
+            return self.send(200,apk.read_bytes(),headers={"Content-Disposition":'attachment; filename="asc-remote-hub-android.apk"'},mimetype="application/vnd.android.package-archive")
         # Platform bootstrap scripts contain no credentials and have an
         # allowlisted origin substituted at request time. They do NOT
         # embed npm, Python or other third-party installer binaries.
