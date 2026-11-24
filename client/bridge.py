@@ -27,7 +27,7 @@ from urllib.request import Request,urlopen
 from urllib.parse import urlparse
 from asc_remote_commander import Agent
 
-VERSION="1.1.8"
+VERSION="1.1.9"
 
 
 def default_config() -> Path:
@@ -278,7 +278,7 @@ def busy_heartbeat(busy: threading.Event, stop: threading.Event,
 
 
 def record_connected_marker(device_id: str, *, directory: Path | None = None) -> bool:
-    """Mark a server-acknowledged hello for the Windows installer.
+    """Mark recent authenticated Hub contact for the Windows installer and tray.
 
     The marker contains only the device ID, process PID, version and time.
     It never contains the device credential or any API response.
@@ -365,8 +365,22 @@ def run(args):
         gui_lock=threading.RLock()
         hello={"machine_info":agent.machine_info({}),
                "tools":list(agent.tools),"version":VERSION}
+        marker_lock=threading.Lock()
+        last_marker=-float("inf")
+        def mark_online():
+            nonlocal last_marker
+            if os.name!="nt":
+                return
+            with marker_lock:
+                now=time.monotonic()
+                if now-last_marker>=5 and record_connected_marker(did):
+                    last_marker=now
         def send_hello():
-            return request(hub,"/agent/hello",hello,token,did,timeout=9)
+            reply=request(hub,"/agent/hello",hello,token,did,timeout=9)
+            if reply.get("ok") is not True or reply.get("device_id") != did:
+                raise ValueError("Hub did not acknowledge this device's hello")
+            mark_online()
+            return reply
         heart=threading.Thread(
             target=busy_heartbeat,args=(busy,stopped,revoked,send_hello),
             daemon=True,name="asc-hub-heartbeat")
@@ -410,11 +424,7 @@ def run(args):
                 futures=set()
                 while not revoked.is_set():
                     try:
-                        hello_reply=send_hello()
-                        if (hello_reply.get("ok") is not True or
-                                hello_reply.get("device_id") != did):
-                            raise ValueError("Hub did not acknowledge this device's hello")
-                        record_connected_marker(did)
+                        send_hello()
                         delay=2
                         while not revoked.is_set():
                             if len(futures)>=MAX_CONCURRENT_JOBS:
@@ -429,6 +439,9 @@ def run(args):
                                 if not futures:busy.clear()
                                 continue
                             item=request(hub,"/agent/next",{},token,did,timeout=29)
+                            if "job" not in item:
+                                raise ValueError("Invalid hub poll response")
+                            mark_online()
                             job=item.get("job")
                             if isinstance(job,dict):
                                 busy.set()
