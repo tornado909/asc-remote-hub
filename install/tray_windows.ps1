@@ -37,7 +37,12 @@ $Logs = Join-Path $env:LOCALAPPDATA 'ASC-Remote-Hub\logs'
 New-Item -ItemType Directory -Path $Logs -Force | Out-Null
 $OutLog = Join-Path $Logs 'agent.stdout.log'
 $ErrLog = Join-Path $Logs 'agent.stderr.log'
-$script:HubUrl = (Get-Content -LiteralPath $Config -Raw -Encoding UTF8 | ConvertFrom-Json).hub_url
+$SavedConfig = Get-Content -LiteralPath $Config -Raw -Encoding UTF8 | ConvertFrom-Json
+$script:HubUrl = $SavedConfig.hub_url
+$script:DeviceId = $SavedConfig.device_id
+$script:ReadyPath = Join-Path $Logs 'agent.ready.json'
+$script:LastTrayStatus = ''
+$script:EverConnected = $false
 $ParsedHub = [System.Uri]$script:HubUrl
 if ($ParsedHub.Scheme -ne 'https' -or $ParsedHub.AbsolutePath -ne '/') {
     throw 'Invalid HTTPS hub URL in agent configuration'
@@ -78,6 +83,35 @@ $Menu.Items.Add('-') | Out-Null
 $ExitItem = $Menu.Items.Add('Выход')
 $script:Tray.ContextMenuStrip = $Menu
 
+function Set-TrayStatus {
+    param([string]$Status)
+    if ($script:LastTrayStatus -ne $Status) {
+        $script:Tray.Text = "ASC Remote Hub Agent ($Status)"
+        $script:LastTrayStatus = $Status
+        Write-TrayDiagnostic ('Status: ' + $Status)
+    }
+}
+function Refresh-AgentStatus {
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0
+    $started = ([DateTimeOffset]$script:LastLaunch).ToUnixTimeMilliseconds() / 1000.0
+    try {
+        $report = Get-Content -LiteralPath $script:ReadyPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
+        $age = $now - [double]$report.connected_at
+        if ($report.device_id -eq $script:DeviceId -and
+            [double]$report.connected_at -ge ($started - 1.0) -and
+            $age -ge -2 -and $age -le 45 -and
+            (Get-Process -Id ([int]$report.pid) -ErrorAction SilentlyContinue)) {
+            $script:EverConnected = $true
+            Set-TrayStatus 'Подключён'
+            return
+        }
+    } catch {}
+    if (-not $script:EverConnected -and ($now - $started) -le 45) {
+        Set-TrayStatus 'Запускается'
+    } else {
+        Set-TrayStatus 'Нет связи'
+    }
+}
 function Start-AgentWorker {
     if ($script:Stopping) { return }
     if ($null -ne $script:WorkerProcess) {
@@ -86,13 +120,14 @@ function Start-AgentWorker {
         } catch {}
     }
     $script:LastLaunch = [datetime]::UtcNow
+    $script:EverConnected = $false
     $args = '"{0}" run --config "{1}"' -f $Worker, $Config
     # Redirect output to files, preventing any visible worker terminal.
     Write-TrayDiagnostic 'Launching background Python worker'
     $script:WorkerProcess = Start-Process -FilePath $Python -ArgumentList $args -WindowStyle Hidden -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -PassThru
     if ($null -eq $script:WorkerProcess) { throw 'Unable to start agent worker' }
     Write-TrayDiagnostic ('Background Python launcher started PID ' + $script:WorkerProcess.Id)
-    $script:Tray.Text = 'ASC Remote Hub Agent (запускается)'
+    Set-TrayStatus 'Запускается'
 }
 function Stop-AgentWorker {
     $Process = $script:WorkerProcess
@@ -116,7 +151,7 @@ $RestartItem.add_Click({
         Start-AgentWorker
     } catch {
         Write-TrayDiagnostic ('Manual restart failed: ' + $_.Exception.GetType().Name + ': ' + $_.Exception.Message)
-        $script:Tray.Text = 'ASC Remote Hub Agent (ошибка)'
+        Set-TrayStatus 'Ошибка'
     }
 })
 function Invoke-LocalLifecycle {
@@ -230,19 +265,21 @@ $ExitItem.add_Click({
 })
 
 $Timer = New-Object System.Windows.Forms.Timer
-$Timer.Interval = 10000
+$Timer.Interval = 2000
 $Timer.add_Tick({
     if ($script:Stopping) { return }
     $Alive = $false
     try {
         $Alive = $null -ne $script:WorkerProcess -and -not $script:WorkerProcess.HasExited
     } catch {}
-    if (-not $Alive) {
-        $script:Tray.Text = 'ASC Remote Hub Agent (перезапуск)'
+    if ($Alive) {
+        Refresh-AgentStatus
+    } else {
+        Set-TrayStatus 'Перезапускается'
         if (([datetime]::UtcNow - $script:LastLaunch).TotalSeconds -ge 30) {
             try { Start-AgentWorker } catch {
                 Write-TrayDiagnostic ('Worker restart failed: ' + $_.Exception.GetType().Name + ': ' + $_.Exception.Message)
-                $script:Tray.Text = 'ASC Remote Hub Agent (ошибка)'
+                Set-TrayStatus 'Ошибка'
             }
         }
     }

@@ -17,12 +17,22 @@ class WindowsLaunchContract(unittest.TestCase):
         self.assertIn("catch {",script)
         self.assertIn("[System.Drawing.SystemIcons]::Application",script)
 
+    def test_tray_refreshes_authenticated_connection_and_expires_stale_marker(self):
+        script=(ROOT/"install/tray_windows.ps1").read_text(encoding="utf-8-sig")
+        worker=(ROOT/"client/bridge.py").read_text()
+        for item in ("Refresh-AgentStatus", "$age -le 45", "$script:DeviceId",
+                     "Set-TrayStatus 'Подключён'", "Set-TrayStatus 'Нет связи'",
+                     "$script:EverConnected = $true"):
+            self.assertIn(item,script)
+        self.assertIn('mark_online()\n                            job=item.get("job")',worker)
+        self.assertIn('mark_online()\n            return reply',worker)
+
     def test_installer_requires_authenticated_worker_hello(self):
         installer=(ROOT/"install/install_windows.ps1").read_text(encoding="utf-8-sig")
         worker=(ROOT/"client/bridge.py").read_text()
         self.assertIn("agent.ready.json",installer)
         self.assertIn("record_connected_marker(did)",worker)
-        self.assertIn('hello_reply.get("device_id") != did',worker)
+        self.assertIn('reply.get("device_id") != did',worker)
         self.assertIn("Get-Process -Id $pidValue",installer)
         self.assertIn("$installStarted",installer)
         self.assertIn("if (-not $connected)",installer)
